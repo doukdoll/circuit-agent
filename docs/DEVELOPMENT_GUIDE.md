@@ -30,14 +30,25 @@ java -jar target/circuit-audit-demo.jar \
 
 이 설정이 추가되기 전에 Windows에서 받은 파일은 CRLF로 남아 있을 수 있습니다. 공개 QCV의 기대 해시가 `4a2bd1...`인데 실제 해시가 `2aa5b6...`이고, `unsafeLowerValueRequiresReview`도 문자열 변경 실패로 보고되면 줄바꿈 변환에 해당합니다.
 
-**아래 샘플을 직접 수정하지 않았다면**, 저장소 루트의 PowerShell에서 세 파일을 Git 원본으로 복원한 후 빌드합니다. 세 샘플의 작업 사본은 이 명령으로 교체됩니다.
+사용자 환경에서는 Git 복원 명령을 실행한 뒤에도 같은 CRLF 해시가 남았습니다. **아래 공개 샘플 두 파일을 직접 수정하지 않았다면**, 저장소 루트의 PowerShell에서 CRLF를 LF로 변환하고 UTF-8 BOM 없이 저장한 뒤 빌드합니다. 사용자가 이 절차 이후 정상 빌드를 확인했습니다.
 
 ```powershell
-git -c core.autocrlf=false restore --source=HEAD --worktree -- samples/qcv/ansys-pyaedt/Schematic1.qcv samples/qcv/ansys-pyaedt/LICENSE samples/ti/tps56c230/cases/normal.qcv
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+
+@(
+    "samples/qcv/ansys-pyaedt/Schematic1.qcv",
+    "samples/qcv/ansys-pyaedt/LICENSE"
+) | ForEach-Object {
+    $path = Join-Path (Get-Location).Path $_
+    $text = [System.IO.File]::ReadAllText($path)
+    [System.IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), $utf8)
+}
+
+Get-FileHash .\samples\qcv\ansys-pyaedt\Schematic1.qcv -Algorithm SHA256
 mvn clean package
 ```
 
-이 명령은 커밋·푸시하거나 전역 Git 설정을 변경하지 않습니다. 샘플 내용 자체를 변경했거나 다른 오류가 있다면 해당 변경·오류를 먼저 확인하세요.
+QCV 해시는 `4A2BD1CE78828FBC97FEA82F79BACD5301A72D102425D5C2EB043BA0FD7E3CA7`이어야 합니다. 이 절차는 두 샘플의 줄바꿈·저장 인코딩을 정리하며 커밋·푸시하거나 전역 Git 설정을 변경하지 않습니다. 샘플 내용 자체를 변경했거나 해시가 다른 경우 해당 변경·오류를 먼저 확인하세요. 자세한 원인·실패한 시도·최종 결과는 [개발 이력의 TS-003](DEVELOPMENT_HISTORY.md#ts-003-windows-줄바꿈으로-테스트-실패)에 있습니다.
 
 ## 정상·위반·사람 검토 사례
 
@@ -135,5 +146,7 @@ Property: Value=10.0k
 2026-10-10 검증에서는 테스트 33개와 실행 JAR의 여섯 검사 사례·공개 원본 파싱이 통과했습니다. 사용한 관리 환경의 Java 21 런타임에는 `ct.sym`이 없어, 해당 환경에서만 Maven에 `-Dmaven.compiler.release= -Dmaven.compiler.source=21 -Dmaven.compiler.target=21`을 지정했습니다. 일반적인 전체 JDK 21에서는 위의 기본 빌드 명령을 사용합니다.
 
 같은 날 줄바꿈 회귀 검증을 추가한 후 테스트 38개가 통과했습니다. Linux 환경에서 `core.autocrlf=true` 체크아웃 시 공개 원본의 바이트 보존과 작성한 파일의 LF 유지를 확인했고, 작성한 QCV 샘플을 CRLF로 바꾼 별도 작업 사본에서도 38개 테스트와 패키징이 통과했습니다. Windows 운영체제 자체에서 실행한 결과는 아닙니다.
+
+이후 사용자는 Windows에서 공개 원본을 LF로 직접 저장한 뒤 정상 빌드를 확인했고, 정상·위반·값 누락 검사와 HTML 보고서도 정상 동작한다고 확인했습니다. 이는 사용자 확인에 근거한 결과이며, 최종 성공의 전체 로그와 화면을 별도로 수집한 것은 아닙니다.
 
 다음 단계는 실제 EDA 형식 명세와 공개 출력 확보, 하드웨어 담당자와 Rule·정답 확인, 대용량/지원 범위 평가입니다. 제공 generate 모듈·기존 Rule/BOM 어댑터, Gemini 실행 경로, 웹/System 인증·API는 입력과 인터페이스가 확정되면 연결합니다. 현재 구현은 모델 호출, PDF 출력, 사람 답변 저장·재검증 이력, DB, 웹 서버를 포함하지 않습니다.
