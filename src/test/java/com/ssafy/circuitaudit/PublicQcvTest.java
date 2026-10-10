@@ -13,6 +13,8 @@ import java.util.HexFormat;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PublicQcvTest {
@@ -26,10 +28,14 @@ class PublicQcvTest {
         assertTrue(Files.readString(directory.resolve("LICENSE")).contains("ANSYS"));
     }
 
-    @Test
-    void parsesEveryComponentPinNetAndSourceAgainstIndependentOracle() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"\n", "\r\n"})
+    void parsesEveryComponentPinNetAndSourceAgainstIndependentOracle(String newline) throws Exception {
         var expected = new ObjectMapper().readTree(directory.resolve("expected.json").toFile());
-        var graph = new QcvParser().parse(directory.resolve("Schematic1.qcv"));
+        var file = directory.resolve("Schematic1.qcv");
+        var contents = Files.readString(file).replace("\r\n", "\n").replace("\n", newline);
+        var graph = new QcvParser().parse(file, contents.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                com.ssafy.circuitaudit.file.netlist.DniPolicy.none());
         assertFalse(graph.hasErrors(), graph.diagnostics().toString());
         assertEquals(expected.get("componentCount").asInt(), graph.components().size());
         assertEquals(expected.get("netCount").asInt(), graph.nets().size());

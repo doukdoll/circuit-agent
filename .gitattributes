@@ -1,0 +1,6 @@
+# Keep source and generated test fixtures consistent across operating systems.
+* text=auto eol=lf
+
+# Pinned public originals must retain the exact bytes recorded in provenance.json.
+samples/qcv/ansys-pyaedt/Schematic1.qcv -text
+samples/qcv/ansys-pyaedt/LICENSE -text

@@ -18,7 +18,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RuleEvaluationTest {
@@ -58,12 +57,17 @@ class RuleEvaluationTest {
         }
     }
 
+    static Stream<Arguments> unsafeLowerValues() {
+        return Stream.of("0", "1uF", "unknown", "-10k").flatMap(value ->
+                Stream.of(Arguments.of(value, "\n"), Arguments.of(value, "\r\n")));
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"0", "1uF", "unknown", "-10k"})
-    void unsafeLowerValueRequiresReview(String value) throws Exception {
-        var normal = writeNormal();
-        var file = normal.replace("COMP: 'R0603' 'R6'\nProperty: Value=10.0k",
-                "COMP: 'R0603' 'R6'\nProperty: Value=" + value);
+    @MethodSource("unsafeLowerValues")
+    void unsafeLowerValueRequiresReview(String value, String newline) throws Exception {
+        var normal = writeNormal().replace("\r\n", "\n").replace("\n", newline);
+        var file = normal.replace("COMP: 'R0603' 'R6'" + newline + "Property: Value=10.0k",
+                "COMP: 'R0603' 'R6'" + newline + "Property: Value=" + value);
         assertNotEquals(normal, file);
         var result = new RuleEngine().evaluate(new QcvParser().parse(write(file)), rule()).getFirst();
         assertEquals(Verdict.NEEDS_REVIEW, result.verdict());
