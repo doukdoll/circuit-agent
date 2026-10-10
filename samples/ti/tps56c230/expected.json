@@ -1,0 +1,13 @@
+{
+  "purpose": "Development-only nominal arithmetic and review behavior, not full EVM or Samsung validation.",
+  "formula": "V_OUT = V_REF * (1 + R_TOP / R_BOTTOM)",
+  "acceptance": {"targetVoltageV": 1.2, "toleranceFraction": 0.03, "origin": "developer_selected_demo_criterion"},
+  "cases": [
+    {"name": "normal", "file": "cases/normal.qcv", "verdict": "PASS", "outputVoltageV": 1.2, "relativeError": 0, "excluded": 0},
+    {"name": "violation", "file": "cases/violation.qcv", "verdict": "FAIL", "outputVoltageV": 1.32, "relativeError": 0.1, "excluded": 0},
+    {"name": "missing-value", "file": "cases/missing-value.qcv", "verdict": "NEEDS_REVIEW", "outputVoltageV": null, "relativeError": null, "excluded": 0},
+    {"name": "ambiguous", "file": "cases/ambiguous.qcv", "verdict": "NEEDS_REVIEW", "outputVoltageV": null, "relativeError": null, "excluded": 0},
+    {"name": "dni-explicit", "file": "cases/dni.qcv", "dniProperty": "DNI", "dniValue": "yes", "verdict": "PASS", "outputVoltageV": 1.2, "relativeError": 0, "excluded": 1},
+    {"name": "dni-not-configured", "file": "cases/dni.qcv", "verdict": "NEEDS_REVIEW", "outputVoltageV": null, "relativeError": null, "excluded": 0}
+  ]
+}

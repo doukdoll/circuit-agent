@@ -1,0 +1,21 @@
+{
+  "id": "DEMO_TPS56C230_FB_NOMINAL",
+  "version": "1.0-demo",
+  "type": "FB_DIVIDER_NOMINAL",
+  "targetModel": "TPS56C230RJER",
+  "feedbackPin": "14",
+  "groundPin": "13",
+  "outputNet": "VOUT",
+  "groundNet": "GND",
+  "referenceVoltageV": 0.6,
+  "targetVoltageV": 1.2,
+  "toleranceFraction": 0.03,
+  "scope": "개발용 부분 회로의 명목 FB 전압 계산. 회로 전체·실측·공차·동특성 검증 결과가 아닙니다.",
+  "acceptanceOrigin": "±3%는 데모를 위해 선택한 기준이며 TI 사양이나 회사의 승인 기준이 아닙니다.",
+  "sources": [
+    {"url": "https://www.ti.com/lit/pdf/SLVUBJ0", "page": 4, "section": "SLVUBJ0B §3.1, Equation 1", "description": "R4 is the upper and R6 the lower divider resistor; reference voltage is 0.6 V."},
+    {"url": "https://www.ti.com/lit/pdf/SLVUBJ0", "page": 3, "section": "SLVUBJ0B Table 2-1", "description": "Nominal EVM output setpoint is 1.2 V."},
+    {"url": "https://www.ti.com/lit/pdf/SLVUBJ0", "page": 17, "section": "SLVUBJ0B Figure 6-1", "description": "Feedback-divider topology and U1 FB/AGND pins."},
+    {"url": "https://www.ti.com/lit/pdf/SLVUBJ0", "page": 18, "section": "SLVUBJ0B Table 6-1", "description": "R4 and R6 nominal resistance is 10.0 kΩ each."}
+  ]
+}

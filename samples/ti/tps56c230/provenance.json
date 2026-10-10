@@ -1,0 +1,25 @@
+{
+  "origin": "developer_authored_partial_circuit_fixture",
+  "product": "TPS56C230EVM",
+  "guide": "TPS56C230 Buck Converter Evaluation Module User's Guide",
+  "documentId": "SLVUBJ0B",
+  "revision": "B, June 2021",
+  "sourceUrl": "https://www.ti.com/lit/pdf/SLVUBJ0",
+  "reviewedDateKst": "2026-10-10",
+  "facts": {
+    "targetOutputVoltageV": {"value": 1.2, "page": 3, "section": "Table 2-1"},
+    "referenceVoltageV": {"value": 0.6, "page": 4, "section": "3.1, Equation 1"},
+    "upperResistor": {"reference": "R4", "ohm": 10000, "page": 18, "section": "Table 6-1"},
+    "lowerResistor": {"reference": "R6", "ohm": 10000, "page": 18, "section": "Table 6-1"},
+    "feedbackPin": {"value": "14", "page": 17, "section": "Figure 6-1"},
+    "analogGroundPin": {"value": "13", "page": 17, "section": "Figure 6-1"}
+  },
+  "developerChoices": {
+    "resistorPinNumbers": "Assigned 1/2 for the reduced test model, not an authoritative EDA export.",
+    "groundNet": "GND denotes the reduced model's reference ground.",
+    "toleranceFraction": 0.03,
+    "toleranceOrigin": "Demo acceptance criterion, not a TI specification or company requirement.",
+    "dniMarker": "DNI=yes on the synthetic R99; only excluded when explicitly configured."
+  },
+  "scope": "Hand-authored partial nominal FB divider. These QCV files were not exported by TI, Siemens, or Samsung. No full circuit, component-tolerance, transient or safety validation is claimed."
+}

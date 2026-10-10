@@ -1,0 +1,4 @@
+reference,model,resistance_ohm,tolerance_percent,manufacturer,manufacturer_part_number,source_document,source_page
+R4,RESISTOR,10000,1,Vishay-Dale,CRCW060310K0FKEA,SLVUBJ0B,18
+R6,RESISTOR,10000,1,Vishay-Dale,CRCW060310K0FKEA,SLVUBJ0B,18
+U1,TPS56C230RJER,,,Texas Instruments,TPS56C230RJER,SLVUBJ0B,18

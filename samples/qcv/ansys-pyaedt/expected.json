@@ -1,0 +1,40 @@
+{
+  "purpose": "Manually recorded parser oracle from the pinned public file; not an engineering PASS report.",
+  "componentCount": 11,
+  "netCount": 6,
+  "pinCount": 16,
+  "errorCount": 0,
+  "componentsWithoutConnectivity": ["V1007", "V1008", "V2005"],
+  "components": {
+    "R1": {"model": "R0603", "value": "10", "pinNets": {"1": "IN", "2": "$1N61"}, "startLine": 9, "endLine": 12},
+    "R2": {"model": "R0603", "value": "100", "pinNets": {"1": "$1N61", "2": "$1N63"}, "startLine": 13, "endLine": 16},
+    "R3": {"model": "R0603", "value": "1k", "pinNets": {"1": "$1N65", "2": "$1N63"}, "startLine": 17, "endLine": 20},
+    "R4": {"model": "R0603", "value": "1k", "pinNets": {"1": "GND", "2": "$1N65"}, "startLine": 21, "endLine": 24},
+    "R5": {"model": "R0603", "value": "100", "pinNets": {"1": "OUT", "2": "$1N65"}, "startLine": 25, "endLine": 28},
+    "C1": {"model": "C0603-100N-J", "value": "0,1uF", "pinNets": {"1": "GND", "2": "$1N61"}, "startLine": 29, "endLine": 32},
+    "C2": {"model": "C0603-10N-J", "value": "0,01uF", "pinNets": {"1": "GND", "2": "$1N63"}, "startLine": 33, "endLine": 36},
+    "C3": {"model": "C0603-10N-J", "value": "0,01uF", "pinNets": {"1": "GND", "2": "OUT"}, "startLine": 37, "endLine": 40},
+    "V1007": {"model": "4212866", "value": null, "pinNets": {}, "startLine": 41, "endLine": 46},
+    "V1008": {"model": "4212866", "value": null, "pinNets": {}, "startLine": 47, "endLine": 52},
+    "V2005": {"model": "P191138", "value": null, "pinNets": {}, "startLine": 53, "endLine": 57}
+  },
+  "nets": {
+    "$1N61": ["R1-2", "R2-1", "C1-2"],
+    "GND": ["C3-1", "C1-1", "C2-1", "R4-1"],
+    "$1N63": ["R2-2", "R3-2", "C2-2"],
+    "$1N65": ["R3-1", "R4-2", "R5-2"],
+    "OUT": ["R5-1", "C3-2"],
+    "IN": ["R1-1"]
+  },
+  "normalizedValues": {
+    "R1": {"value": 10, "unit": "ohm"},
+    "R2": {"value": 100, "unit": "ohm"},
+    "R3": {"value": 1000, "unit": "ohm"},
+    "R4": {"value": 1000, "unit": "ohm"},
+    "R5": {"value": 100, "unit": "ohm"},
+    "C1": {"value": 0.0000001, "unit": "F"},
+    "C2": {"value": 0.00000001, "unit": "F"},
+    "C3": {"value": 0.00000001, "unit": "F"}
+  },
+  "connectedToR3": ["R2", "C2", "R4", "R5"]
+}

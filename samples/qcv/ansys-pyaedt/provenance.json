@@ -1,0 +1,14 @@
+{
+  "origin": "unmodified_public_fixture",
+  "repository": "https://github.com/ansys/pyaedt",
+  "commit": "dafbb23b697c00eb1d0b653f9d194a3e5df9f970",
+  "sourcePath": "tests/system/general/example_models/T21/Schematic1.qcv",
+  "sourceUrl": "https://github.com/ansys/pyaedt/blob/dafbb23b697c00eb1d0b653f9d194a3e5df9f970/tests/system/general/example_models/T21/Schematic1.qcv",
+  "rawUrl": "https://raw.githubusercontent.com/ansys/pyaedt/dafbb23b697c00eb1d0b653f9d194a3e5df9f970/tests/system/general/example_models/T21/Schematic1.qcv",
+  "sha256": "4a2bd1ce78828fbc97fea82f79bacd5301a72d102425d5c2eb043ba0fd7e3ca7",
+  "license": "MIT",
+  "licenseFile": "LICENSE",
+  "licenseSha256": "06d642898a7cd183ad60dc35e869b75908833725acfead692a2bde9a4b391041",
+  "retrievedDateKst": "2026-10-10",
+  "scope": "Public parser fixture; compatibility with Samsung internal exports is unverified."
+}
