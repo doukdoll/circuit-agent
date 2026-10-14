@@ -1,3 +1,6 @@
 /target/
 /output/
 *.class
+__pycache__/
+*.pyc
+/tools/spdm_import/local-output/

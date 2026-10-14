@@ -1,0 +1,19 @@
+{
+  "sheet": "병합결과",
+  "duplicate_key": ["sec_code", "rule_adminno", "rule_seqno"],
+  "fields": [
+    {"name": "part_adminno", "column": "A", "header": "adminno", "type": "integer", "required": true},
+    {"name": "part_seqno", "column": "B", "header": "seqno", "type": "integer", "required": true},
+    {"name": "sec_code", "column": "C", "header": "sec_code", "type": "sec_code", "required": true},
+    {"name": "maker", "column": "F", "header": "maker", "type": "text"},
+    {"name": "maker_pn", "column": "G", "header": "maker_pn", "type": "text"},
+    {"name": "rule_adminno", "column": "H", "header": "adminno", "type": "integer", "required": true},
+    {"name": "rule_seqno", "column": "I", "header": "seqno", "type": "integer", "required": true},
+    {"name": "checkpoint", "column": "J", "header": "Checkpoint", "type": "text"},
+    {"name": "specification", "column": "K", "header": "Specification", "type": "text"},
+    {"name": "design_value", "column": "L", "header": "설계치", "type": "text"},
+    {"name": "reference_doc", "column": "M", "header": "참조문서", "type": "text"},
+    {"name": "category", "column": "Q", "header": "category", "type": "text", "allowed": ["a", "b", "c"]},
+    {"name": "pin_info", "column": "R", "header": "pin_info", "type": "text"}
+  ]
+}
