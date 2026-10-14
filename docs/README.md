@@ -7,4 +7,4 @@
 - [개발 이력 및 포트폴리오 기록](DEVELOPMENT_HISTORY.md) — 구현 근거·검증 결과·Windows 트러블슈팅
 - [작업 및 개발 기록 규칙](WORKFLOW.md) — 기능·문제 해결 기록 양식과 브랜치·PR 절차
 - [웹 구조 및 MySQL 설계 방향](WEB_ARCHITECTURE.md) — DB 선택과 제안 디렉토리·저장 책임·UI/UX 흐름
-- [SPDM 컬럼 선택·최소 정제 시작 가이드](SPDM_IMPORT.md) — 병합/정제 xlsx 점검, 설정 변경, Windows 실행, SQLite 저장 전 확인
+- [SPDM 컬럼 선택·최소 정제·SQLite 저장 가이드](SPDM_IMPORT.md) — xlsx 점검·적재, 가져오기 이력, SEC별 조회, Windows 반입 실행

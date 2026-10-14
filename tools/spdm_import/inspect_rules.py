@@ -4,6 +4,7 @@ import argparse
 from collections import Counter
 from datetime import datetime
 import hashlib
+from io import BytesIO
 import json
 import math
 from pathlib import Path
@@ -15,6 +16,9 @@ from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
 from openpyxl.utils.datetime import from_excel
 from openpyxl.utils.exceptions import InvalidFileException
+
+
+PARSER_VERSION = "1"
 
 
 def json_value(value):
@@ -93,11 +97,12 @@ def resolve_fields(headers, config):
     return resolved
 
 
-def inspect_workbook(source, config, preview_limit=10):
+def inspect_workbook(source, config, preview_limit=10, *, row_sink=None, source_bytes=None):
     if preview_limit < 0:
         raise ValueError("preview는 0 이상이어야 함")
     # Read formulas literally so they are flagged rather than silently using stale caches.
-    workbook = load_workbook(source, read_only=True, data_only=False)
+    workbook = load_workbook(BytesIO(source_bytes) if source_bytes is not None else source,
+                             read_only=True, data_only=False)
     try:
         sheet = workbook[config["sheet"]]
         rows = sheet.iter_rows()
@@ -120,6 +125,8 @@ def inspect_workbook(source, config, preview_limit=10):
                 if not blank(value):
                     nonempty[index] += 1
             raw, cleaned = {}, {}
+            issue_start = len(issues)
+            duplicate_first_row = None
             for field, index in fields:
                 value = values[index] if index < len(values) else None
                 name = field["name"]
@@ -145,10 +152,14 @@ def inspect_workbook(source, config, preview_limit=10):
                 key = tuple(cleaned[name] for name in key_fields)
                 if key in keys:
                     duplicates.append({"row": row_number, "first_row": keys[key]})
+                    duplicate_first_row = keys[key]
                 else:
                     keys[key] = row_number
             if len(previews) < preview_limit:
                 previews.append({"source_row": row_number, "raw": raw, "selected": cleaned})
+            if row_sink is not None:
+                row_sink({"source_row": row_number, "raw": raw, "selected": cleaned,
+                          "issues": issues[issue_start:], "duplicate_first_row": duplicate_first_row})
         return {
             "source_file": source.name,
             "sheet": config["sheet"],
