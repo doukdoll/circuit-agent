@@ -228,7 +228,7 @@ CRLF 사본 SHA-256:
 
 ### 2026-10-15 — JSON 전용 입력 확정·이전 입력 코드 제거·환경 검증
 
-- **상태:** JSON 전용 구현과 로컬 배포 검증 완료. Windows 실기 검증은 별도 실행 상태에 따라 기록하며 Linux 결과를 Windows 성공으로 표시하지 않음.
+- **상태:** JSON 전용 구현과 로컬 배포 검증 완료. 실제 Windows CI의 PowerShell 5.1/7 검증 완료. 회사 PC 자체의 파일 접근 조건은 미검증이며 Linux 실제 입력 결과와 구분.
 - **문제와 목표:** 사용자가 앞으로 입력은 JSON으로 고정된다고 확정하고 이전 Excel 부분 제거와 실제 입력·Windows/PowerShell 환경 검증을 요청.
 - **변경:** 기존 입력 파서·매핑 설정·패키지 요구 파일·해당 테스트를 삭제. import CLI의 형식 감지/선택·컬럼 매핑 옵션, sqlite_store의 기존 입력 저장/조회·이관 분기를 제거. JSON 전용 고정 계약과 표준 라이브러리만 사용.
 - **저장:** 스키마 v3의 import_batches/checkpoints/rules만 유지. 기존 입력 전용 컬럼 제거, 계약 해시 명칭 통일, 다른 가져오기의 체크포인트 연결을 복합 외래키로 차단. v1/v2 및 다른 용도의 DB는 변형 없이 거부하고 새 JSON DB에 적재하도록 안내.
@@ -236,8 +236,10 @@ CRLF 사본 SHA-256:
 - **가상 검증:** 관리 Linux/Python 3.12.14에서 JSON 테스트 13개 통과. 한글/공백 경로·BOM·원문·타입·미완료 분석·중복 보존·읽기 전용 조회·지원하지 않는 DB 불변·부분 SQL 실패 롤백·외부 연결 차단·CLI 검증 포함. 이전 단계의 37개는 기존 입력 호환을 포함했던 과거 결과이며 이번 테스트 수와 구분.
 - **실제 입력:** 첨부본 전체 10체크포인트/35규칙/3SEC, 구조 오류 0개, 분석 이슈 11개 보존. 로컬 v3 DB 저장·전체 SEC 원문 조회 일치·동일 입력 skipped·원본 해시 불변 확인. 환경 점검에서도 내용 변경 시 새 이력과 잘못된 입력 시 기존 이력 보존 확인.
 - **독립 배포 검증:** spdm-json-only.zip의 허용 목록 10개 파일만 추출하고 pip/openpyxl이 없는 새 venv에서 Python -S로 13개 테스트와 실제 첨부본 환경 검증 통과. 스키마 SQL 실행 및 버전 3 확인. ZIP은 코드·고정 계약·가상 테스트·실행 MD·SQL만 포함하며 실제 첨부/DB/보고서는 포함하지 않음.
-- **Windows 구성:** GitHub Actions windows-latest에서 PowerShell 7(pwsh)와 Windows PowerShell 5.1(powershell)을 각각 사용해 가상 데이터로 실행하는 workflow 준비. 실행/성공 결과는 아직 없음. 회사 PC의 접근 권한·DRM 조건은 그 PC에서 제공된 환경 검증 명령으로 별도 확인 필요.
+- **Windows 구성:** GitHub Actions windows-latest에서 PowerShell 7(pwsh)와 Windows PowerShell 5.1(powershell)을 각각 사용해 가상 데이터로 실행하는 workflow 준비. 이후 실제 실행/성공 결과는 아래 후속 근거에 기록. 회사 PC의 접근 권한·DRM 조건은 그 PC에서 제공된 환경 검증 명령으로 별도 확인 필요.
 - **문서:** JSON 실행 가이드·기존 진입 문서·목차·개발 가이드 갱신. 추가 설치 패키지·가상환경 활성화·외부 API 없이 실행하며 새 DB 경로 사용.
 - **범위/게시:** QCV/BOM 파싱·Gemini 판정은 변경/검증하지 않음. 기존 작업 브랜치 feat/spdm-inspection 사용. 사용자가 이번 코드·문서·가상 Windows workflow의 커밋·푸시·PR 갱신 및 Windows 테스트 실행을 승인. 실제 데이터 산출물은 로컬에 유지.
 
 - **Windows CI 초기 오류:** 첫 workflow는 shell 속성의 matrix 표현식이 GitHub 문맥 검사에서 거부되어 작업 시작 전 실패(run 38720451877). YAML 파싱 성공만으로 GitHub 표현식 유효성을 입증할 수 없었음. 각 step의 shell을 pwsh/powershell 상수로 지정하고 if 조건으로 선택하도록 수정해 재실행. Python 기능 오류나 Windows 런타임 테스트 실패와 구분.
+
+- **Windows 최종 근거:** [run 38720635486](https://github.com/doukdoll/circuit-agent/actions/runs/38720635486), 구현 ff08c37 및 workflow 수정 5fbcf34 기준 PR 병합 미리보기(e2c7765)에서 성공. Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1, Windows PowerShell 5.1.26100.33438(job 116374033312) 및 PowerShell 7.6.6(job 116374033610) 각각 가상 테스트 13개와 환경 검증 전체 통과. 한글·공백·# 경로, Python -S 실행, system=Windows/windows_verified=true 확인. 가상 2체크포인트/4규칙/2SEC의 전체 적재·조회·타입 보존·새 이력·오류 거부·반복 스킵 검증. 회사 첨부본을 Windows CI에 전송하지 않음. 이후 문서만 갱신하며 이 실행 결과를 재사용, 추가 런타임 실행으로 표현하지 않음.

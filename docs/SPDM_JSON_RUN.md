@@ -255,4 +255,6 @@ PowerShell을 닫으면 변수가 사라진다. 재시작할 때 3장의 경로 
 
 JSON 전용 가상 테스트 13개와 첨부 JSON의 전체 저장·조회·원문/타입 보존·재실행을 검증한다. 첨부본은 10체크포인트/35규칙/3SEC이며 분석 이슈 11개를 보존한다. Python `-S`와 패키지 없는 별도 환경에서 확인한다.
 
-환경 검증 보고서의 실제 OS를 기준으로 Windows 검증과 Linux 검증을 구분한다. Windows CI 구성은 가상 데이터만 사용하며 실제 회사 PC의 파일 접근·DRM 조건은 해당 PC에서 `verify_environment.py --expect-windows --input ...`으로 별도 확인한다. QCV/BOM·Gemini 판정은 이 도구의 검증 범위에 포함하지 않는다.
+Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1의 실제 Windows CI에서 PowerShell 5.1.26100.33438과 7.6.6 각각 테스트 13개와 환경 검증 전체가 통과했다. 한글·공백·# 경로에서 Python -S로 실행했고 두 보고서 모두 `system=Windows`, `windows_verified=true`다. [Windows 실행 근거](https://github.com/doukdoll/circuit-agent/actions/runs/38720635486).
+
+Windows CI에는 가상 데이터만 사용했다. 실제 첨부본은 별도의 Linux 환경에서 검증했다. 실제 회사 PC의 파일 접근·DRM 조건은 해당 PC에서 `verify_environment.py --expect-windows --input ...`으로 별도 확인한다. QCV/BOM·Gemini 판정은 이 도구의 검증 범위에 포함하지 않는다.
