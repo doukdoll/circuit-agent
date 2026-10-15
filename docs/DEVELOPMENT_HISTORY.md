@@ -210,3 +210,32 @@ CRLF 사본 SHA-256:
 - **한계:** Windows/PowerShell 명령·설치 프로그램·사내 DRM·실제 입력 접근은 이 작업에서 실행하지 않음. Python 공식 다운로드 주소는 안내용이며 이 작업에서 외부 다운로드를 수행하지 않음.
 - **Git 승인·게시 대상:** 사용자가 이번 문서의 커밋·푸시를 승인. 기존 `feat/spdm-inspection`에 문서 변경만 추가 커밋하여 일반 푸시하고 [PR #2](https://github.com/doukdoll/circuit-agent/pull/2)의 안내를 갱신. main 병합은 별도 승인 범위이며 실제 추가 커밋·게시 결과는 완료 보고에서 확인.
 - **게시 전 확인:** 직전 문서 작업의 예제 검증 결과를 재사용. 이번 게시에서는 문서 링크·장 순서·코드 블록·공백·파일 목록을 확인하며 앱 테스트나 Windows 실행을 새로 수행했다고 표현하지 않음.
+
+### 2026-10-15 — 고정 analysis JSON 입력·구조화 규칙 저장
+
+- **상태:** 구현·가상 테스트·사용자 제공 부분 입력의 로컬 적재/조회 검증 완료. 실제 입력은 저장소 및 배포 ZIP에 포함하지 않음.
+- **요구:** 사용자가 고정 필드의 전처리 JSON 일부를 제공하고 Rule 파싱·DB 저장·조회와 실행 Markdown 작성을 요청. 데이터 내용은 변경될 수 있지만 컬럼/키 구조는 고정.
+- **실제 구조 확인:** 최상위 체크포인트 배열 안의 `analysis.checks`가 세부 규칙 단위. 실제 키는 단수 `requirement`, 원문 checkPoint는 별도 필드로 존재하지 않음. SEC는 8자리와 4자리-6자리 두 형식. target_kind는 검사 대상 유형으로 원형 유지.
+- **구현:** `analysis.schema.json`, `json_rules.py`, `inspect_json_rules.py`, `test_json_rules.py` 추가. import CLI는 JSON/Excel 자동 감지 및 `--format` 지원, JSON은 고정 계약을 사용. JSON 경로의 외부 패키지 의존성을 제거하고 표준 라이브러리만 사용.
+- **저장 구조:** 스키마 v2의 `import_batches → checkpoints → rules`. 부모 원본 객체·상태·summary·issues와 각 check의 target·requirement·parameters·required_design_facts·evidence·소스 ID/JSON 위치를 보존. summary는 표시용 checkpoint, requirement는 specification으로 연결. 필요한 설계치 항목은 배열로 표시하고 실제 관측값으로 채우지 않음; original_checkpoint와 JSON design_value는 null.
+- **무결성·호환:** 구조/타입·중복 JSON 키·비유한 숫자·상하위 SEC 불일치 검사. 원본 이슈·중복 규칙·수식 문자열·파라미터 타입 보존. 동일 입력/계약/버전은 스킵, 내용 변경은 새 가져오기. v1 읽기 전용 조회와 트랜잭션 v2 이관, ID 보존 및 중간 SQL 실패 시 원상복구 지원. 별도 객체가 있는 v1은 자동 이관 거부. 빈/미완료 분석도 체크포인트 이력으로 보관하고 NO_CHECKS로 조회.
+- **가상 검증:** 관리 Linux/Python 3.12.14/openpyxl 3.1.5에서 전체 `python -m unittest discover -s tools/spdm_import -p 'test_*.py' -v` 37개 통과. JSON 전용 12개는 표준 라이브러리만 사용. 필드/타입·혼합 SEC·파라미터/원문 보존·빈 분석·중복·SQL 롤백·v1 이관/조회·이관 중 SQL 실패 복구·CLI 확인. Java 테스트는 재실행하지 않음.
+- **실제 입력 검증:** 첨부 JSON을 `python -S`로 점검/적재/조회. 10체크포인트/35규칙/3SEC, 구조 오류 0개, 분석 이슈 11개 보존. 각 SEC의 전체 규칙 및 파라미터·근거·요구 설계 정보의 원본 일치, 부모/자식 원문 객체 일치, FK 무결성, 입력 해시 불변, 재실행 skipped 확인. 소스의 실제 규칙 내용·부품 코드는 문서/테스트에 복사하지 않음.
+- **문서·배포:** [JSON 실행 가이드](SPDM_JSON_RUN.md), 목차·개발 가이드·기존 Excel 안내 갱신. JSON 전용 ZIP에는 코드·고정 계약·가상 테스트·MD·스키마 SQL만 포함. 실제 입력/DB/보고서는 로컬 output 또는 첨부 경로에 유지. `.gitignore`에 실제 입력 기본 파일명 `analysis.json` 추가.
+- **한계:** Windows·DRM·QCV/BOM 사실 추출·Gemini 판정은 미검증/미연동. 원문 checkPoint의 완전한 복원이나 분석 이슈의 해결을 수행하지 않음. 이번 파일은 일부 데이터이며 다른 버전의 규칙을 자동 병합하지 않음.
+- **Git:** 기존 `feat/spdm-inspection` 작업 트리에서 수정. 이번 변경의 커밋·푸시·PR 업데이트는 아직 수행하지 않음. 이전 작업의 게시 승인과 구분.
+- **배포 최종 확인:** `output/spdm/spdm-analysis-json.zip`의 허용 목록 9개 파일을 로컬 코드/문서와 바이트 비교. 별도 임시 폴더에 풀어 `python -S`로 JSON 전용 12개 테스트 및 가상 입력의 점검→저장→SEC 조회 CLI 성공. 초기화용 스키마 SQL도 가상 DB에서 실행 확인. 실제 첨부/DB/보고서는 ZIP에 포함하지 않음.
+
+### 2026-10-15 — JSON 전용 입력 확정·이전 입력 코드 제거·환경 검증
+
+- **상태:** JSON 전용 구현과 로컬 배포 검증 완료. Windows 실기 검증은 별도 실행 상태에 따라 기록하며 Linux 결과를 Windows 성공으로 표시하지 않음.
+- **문제와 목표:** 사용자가 앞으로 입력은 JSON으로 고정된다고 확정하고 이전 Excel 부분 제거와 실제 입력·Windows/PowerShell 환경 검증을 요청.
+- **변경:** 기존 입력 파서·매핑 설정·패키지 요구 파일·해당 테스트를 삭제. import CLI의 형식 감지/선택·컬럼 매핑 옵션, sqlite_store의 기존 입력 저장/조회·이관 분기를 제거. JSON 전용 고정 계약과 표준 라이브러리만 사용.
+- **저장:** 스키마 v3의 import_batches/checkpoints/rules만 유지. 기존 입력 전용 컬럼 제거, 계약 해시 명칭 통일, 다른 가져오기의 체크포인트 연결을 복합 외래키로 차단. v1/v2 및 다른 용도의 DB는 변형 없이 거부하고 새 JSON DB에 적재하도록 안내.
+- **검증 도구:** verify_environment.py 추가. Python -S 하위 CLI로 점검→전체 적재→모든 SEC 조회→원문/구조화 타입·FK 비교→재실행→값 변경→잘못된 입력 거부를 임시 한글/공백/# 경로에서 실행. 실제 OS·Python·SQLite·항목별 결과 기록, --expect-windows는 Linux에서 종료 2로 실패하며 windows_verified=false 유지. 실제 입력은 읽기만 수행.
+- **가상 검증:** 관리 Linux/Python 3.12.14에서 JSON 테스트 13개 통과. 한글/공백 경로·BOM·원문·타입·미완료 분석·중복 보존·읽기 전용 조회·지원하지 않는 DB 불변·부분 SQL 실패 롤백·외부 연결 차단·CLI 검증 포함. 이전 단계의 37개는 기존 입력 호환을 포함했던 과거 결과이며 이번 테스트 수와 구분.
+- **실제 입력:** 첨부본 전체 10체크포인트/35규칙/3SEC, 구조 오류 0개, 분석 이슈 11개 보존. 로컬 v3 DB 저장·전체 SEC 원문 조회 일치·동일 입력 skipped·원본 해시 불변 확인. 환경 점검에서도 내용 변경 시 새 이력과 잘못된 입력 시 기존 이력 보존 확인.
+- **독립 배포 검증:** spdm-json-only.zip의 허용 목록 10개 파일만 추출하고 pip/openpyxl이 없는 새 venv에서 Python -S로 13개 테스트와 실제 첨부본 환경 검증 통과. 스키마 SQL 실행 및 버전 3 확인. ZIP은 코드·고정 계약·가상 테스트·실행 MD·SQL만 포함하며 실제 첨부/DB/보고서는 포함하지 않음.
+- **Windows 구성:** GitHub Actions windows-latest에서 PowerShell 7(pwsh)와 Windows PowerShell 5.1(powershell)을 각각 사용해 가상 데이터로 실행하는 workflow 준비. 실행/성공 결과는 아직 없음. 회사 PC의 접근 권한·DRM 조건은 그 PC에서 제공된 환경 검증 명령으로 별도 확인 필요.
+- **문서:** JSON 실행 가이드·기존 진입 문서·목차·개발 가이드 갱신. 추가 설치 패키지·가상환경 활성화·외부 API 없이 실행하며 새 DB 경로 사용.
+- **범위/게시:** QCV/BOM 파싱·Gemini 판정은 변경/검증하지 않음. 기존 작업 브랜치 feat/spdm-inspection 사용. 사용자가 이번 코드·문서·가상 Windows workflow의 커밋·푸시·PR 갱신 및 Windows 테스트 실행을 승인. 실제 데이터 산출물은 로컬에 유지.

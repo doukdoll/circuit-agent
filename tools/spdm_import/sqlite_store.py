@@ -1,4 +1,4 @@
-"""Local rule snapshots. Board references and observed circuit facts belong to the caller."""
+"""JSON rule snapshots. Circuit facts and verdicts are separate data."""
 
 from contextlib import closing
 from datetime import datetime, timezone
@@ -9,53 +9,63 @@ import re
 import sqlite3
 
 
-APPLICATION_ID = 0x5350444D  # SPDM
-SCHEMA_VERSION = 1
-IMPORTER_VERSION = "1"
-CORE_TYPES = {
-    "part_adminno": "integer", "part_seqno": "integer", "sec_code": "sec_code",
-    "maker": "text", "maker_pn": "text", "rule_adminno": "integer", "rule_seqno": "integer",
-    "checkpoint": "text", "specification": "text", "design_value": "text",
-    "reference_doc": "text", "category": "text", "pin_info": "text",
-}
-CORE_FIELDS = tuple(CORE_TYPES)
+APPLICATION_ID = 0x5350444D
+SCHEMA_VERSION = 3
+IMPORTER_VERSION = "json-only:1"
+SEC_CHECK = """((length(sec_code)=8 AND sec_code NOT GLOB '*[^0-9]*') OR
+    (length(sec_code)=11 AND substr(sec_code,5,1)='-' AND
+     substr(sec_code,1,4) NOT GLOB '*[^0-9]*' AND substr(sec_code,6,6) NOT GLOB '*[^0-9]*'))"""
 SCHEMA = [
     """CREATE TABLE import_batches (
         id INTEGER PRIMARY KEY,
         source_file TEXT NOT NULL,
         source_sha256 TEXT NOT NULL,
-        mapping_sha256 TEXT NOT NULL,
+        contract_sha256 TEXT NOT NULL,
         parser_version TEXT NOT NULL,
         importer_version TEXT NOT NULL,
-        sheet_name TEXT NOT NULL,
         imported_at TEXT NOT NULL,
-        row_count INTEGER NOT NULL DEFAULT 0,
-        mapping_json TEXT NOT NULL,
-        inspection_json TEXT NOT NULL DEFAULT '{}',
-        UNIQUE(source_sha256, mapping_sha256, parser_version, importer_version)
+        checkpoint_count INTEGER NOT NULL,
+        rule_count INTEGER NOT NULL,
+        contract_json TEXT NOT NULL,
+        inspection_json TEXT NOT NULL,
+        UNIQUE(source_sha256, contract_sha256, parser_version, importer_version)
     )""",
-    """CREATE TABLE rules (
+    f"""CREATE TABLE checkpoints (
         id INTEGER PRIMARY KEY,
         batch_id INTEGER NOT NULL REFERENCES import_batches(id),
-        source_row INTEGER NOT NULL,
-        part_adminno INTEGER,
-        part_seqno INTEGER,
-        sec_code TEXT NOT NULL CHECK(length(sec_code) = 8 AND sec_code NOT GLOB '*[^0-9]*'),
-        maker TEXT,
-        maker_pn TEXT,
-        rule_adminno INTEGER,
-        rule_seqno INTEGER,
-        checkpoint TEXT,
-        specification TEXT,
-        design_value TEXT,
-        reference_doc TEXT,
-        category TEXT,
-        pin_info TEXT,
+        source_record_index INTEGER NOT NULL,
+        checkpoint_id TEXT NOT NULL,
+        row_uid TEXT NOT NULL,
+        sec_code TEXT NOT NULL CHECK {SEC_CHECK},
+        status TEXT NOT NULL,
+        summary TEXT,
+        issues_json TEXT NOT NULL,
         raw_json TEXT NOT NULL,
-        selected_json TEXT NOT NULL,
+        UNIQUE(batch_id, source_record_index),
+        UNIQUE(id, batch_id)
+    )""",
+    f"""CREATE TABLE rules (
+        id INTEGER PRIMARY KEY,
+        batch_id INTEGER NOT NULL REFERENCES import_batches(id),
+        checkpoint_db_id INTEGER NOT NULL,
+        source_row INTEGER NOT NULL,
+        source_check_index INTEGER NOT NULL,
+        requirement_id TEXT NOT NULL,
+        sec_code TEXT NOT NULL CHECK {SEC_CHECK},
+        specification TEXT NOT NULL,
+        target_kind TEXT NOT NULL,
+        target_description TEXT NOT NULL,
+        applicability TEXT NOT NULL,
+        level TEXT NOT NULL,
+        parameters_json TEXT NOT NULL,
+        required_design_facts_json TEXT NOT NULL,
+        evidence_json TEXT NOT NULL,
+        raw_json TEXT NOT NULL,
         issues_json TEXT NOT NULL,
         duplicate_first_row INTEGER,
-        UNIQUE(batch_id, source_row)
+        FOREIGN KEY(checkpoint_db_id, batch_id) REFERENCES checkpoints(id, batch_id),
+        UNIQUE(batch_id, source_row),
+        UNIQUE(checkpoint_db_id, source_check_index)
     )""",
     "CREATE INDEX rules_batch_sec ON rules(batch_id, sec_code)",
 ]
@@ -63,12 +73,18 @@ SCHEMA = [
 
 class InspectionError(ValueError):
     def __init__(self, report):
-        super().__init__(f"변환 오류 {report['errors']}건: 이번 가져오기를 전부 취소함")
+        super().__init__(f"JSON 오류 {report['errors']}건: 이번 가져오기를 전부 취소함")
         self.report = report
 
 
 def encode_json(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False)
+
+
+def validate_sec_code(value):
+    if not isinstance(value, str) or not re.fullmatch(r"(?:[0-9]{8}|[0-9]{4}-[0-9]{6})", value.strip()):
+        raise ValueError("SEC는 8자리 또는 4자리-6자리 원본 문자열이어야 함; 임의 변환하지 않음")
+    return value.strip()
 
 
 def distinct_paths(*paths):
@@ -78,21 +94,20 @@ def distinct_paths(*paths):
             if left.resolve() == right.resolve() or (
                 left.exists() and right.exists() and left.samefile(right)
             ):
-                raise ValueError("입력·설정·DB·보고서 파일 경로는 서로 달라야 함")
+                raise ValueError("입력·계약·DB·보고서 파일 경로는 서로 달라야 함")
 
 
 def check_schema(connection):
     if connection.execute("PRAGMA application_id").fetchone()[0] != APPLICATION_ID:
-        raise ValueError("이 도구의 SPDM DB가 아님")
+        raise ValueError("이 도구의 SPDM JSON DB가 아님")
     if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
-        raise ValueError("지원하지 않는 DB 스키마 버전")
+        raise ValueError("지원하지 않는 DB 버전; 기존 DB를 보존하고 새 JSON DB 경로를 사용하세요")
 
 
 def initialize_schema(connection):
     application_id = connection.execute("PRAGMA application_id").fetchone()[0]
-    tables = connection.execute("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
-    if application_id == 0 and not tables and connection.execute("PRAGMA user_version").fetchone()[0] == 0:
-        # Individual statements keep DDL and data in the same transaction (executescript commits implicitly).
+    objects = connection.execute("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
+    if application_id == 0 and not objects and connection.execute("PRAGMA user_version").fetchone()[0] == 0:
         for statement in SCHEMA:
             connection.execute(statement)
         connection.execute(f"PRAGMA application_id = {APPLICATION_ID}")
@@ -101,25 +116,18 @@ def initialize_schema(connection):
         check_schema(connection)
 
 
-def import_workbook(source, database, config, preview_limit=10):
-    from inspect_rules import PARSER_VERSION, inspect_workbook
+def import_analysis(source, database, preview_limit=10):
+    from json_rules import JSON_PARSER_VERSION, load_contract, parse_analysis
 
     source, database = Path(source), Path(database)
     distinct_paths(source, database)
-    field_map = {field["name"]: field for field in config["fields"]}
-    if "sec_code" not in field_map or field_map["sec_code"]["type"] != "sec_code":
-        raise ValueError("DB 적재에는 sec_code 필드와 sec_code 타입 매핑이 필요함")
-    for name, field in field_map.items():
-        if name in CORE_TYPES and field["type"] != CORE_TYPES[name]:
-            raise ValueError(f"DB 기본 필드 {name}의 타입은 {CORE_TYPES[name]}이어야 함")
-    if preview_limit < 0:
-        raise ValueError("preview는 0 이상이어야 함")
-    # Hash and parse the same bytes, even if the source file changes during the import.
     source_bytes = source.read_bytes()
-    source_hash = hashlib.sha256(source_bytes).hexdigest()
-    mapping_json = encode_json(config)
-    mapping_hash = hashlib.sha256(mapping_json.encode("utf-8")).hexdigest()
-    identity = (source_hash, mapping_hash, PARSER_VERSION, IMPORTER_VERSION)
+    parsed = parse_analysis(source, preview_limit, source_bytes=source_bytes)
+    report = parsed.report
+    if report["errors"]:
+        raise InspectionError(report)
+    identity = (hashlib.sha256(source_bytes).hexdigest(), report["contract_sha256"],
+                JSON_PARSER_VERSION, IMPORTER_VERSION)
     database.parent.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(database, isolation_level=None)) as connection:
         connection.execute("PRAGMA foreign_keys = ON")
@@ -127,61 +135,51 @@ def import_workbook(source, database, config, preview_limit=10):
         try:
             initialize_schema(connection)
             existing = connection.execute(
-                "SELECT id, row_count FROM import_batches WHERE "
-                "source_sha256=? AND mapping_sha256=? AND parser_version=? AND importer_version=?", identity
-            ).fetchone()
+                "SELECT id, rule_count FROM import_batches WHERE source_sha256=? AND contract_sha256=? "
+                "AND parser_version=? AND importer_version=?", identity).fetchone()
             if existing:
-                report = inspect_workbook(source, config, preview_limit, source_bytes=source_bytes)
                 connection.rollback()
-                return {"status": "skipped", "batch_id": existing[0], "stored_rows": existing[1],
-                        "inspection": report}
+                return {"status": "skipped", "batch_id": existing[0], "stored_rows": existing[1], "inspection": report}
             batch_id = connection.execute(
-                "INSERT INTO import_batches(source_file, source_sha256, mapping_sha256, parser_version, "
-                "importer_version, sheet_name, imported_at, mapping_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (source.name, *identity, config["sheet"], datetime.now(timezone.utc).isoformat(), mapping_json)
+                "INSERT INTO import_batches(source_file, source_sha256, contract_sha256, parser_version, "
+                "importer_version, imported_at, checkpoint_count, rule_count, contract_json, inspection_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (source.name, *identity, datetime.now(timezone.utc).isoformat(), len(parsed.records),
+                 len(parsed.rows), encode_json(load_contract()), encode_json(report))
             ).lastrowid
-            columns = ("batch_id", "source_row", *CORE_FIELDS, "raw_json", "selected_json",
-                       "issues_json", "duplicate_first_row")
-            insert_sql = f"INSERT INTO rules({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})"
-            stored_rows = 0
-
-            def store_row(row):
-                nonlocal stored_rows
-                if any(issue["severity"] == "error" for issue in row["issues"]):
-                    return  # Finish inspecting all rows; reject the batch below.
-                selected = row["selected"]
-                if selected["sec_code"] is None:
-                    raise ValueError(f"{row['source_row']}행 SEC 코드가 비어 있음; 전체 적재 취소")
-                for name in CORE_FIELDS:
-                    value = selected.get(name)
-                    if CORE_TYPES[name] == "integer" and value is not None and not -(2**63) <= value < 2**63:
-                        raise ValueError(f"{row['source_row']}행 {name}: SQLite 정수 범위를 벗어남")
-                connection.execute(insert_sql, (
-                    batch_id, row["source_row"], *(selected.get(name) for name in CORE_FIELDS),
-                    encode_json(row["raw"]), encode_json(selected), encode_json(row["issues"]),
-                    row["duplicate_first_row"],
-                ))
-                stored_rows += 1
-
-            report = inspect_workbook(source, config, preview_limit, row_sink=store_row, source_bytes=source_bytes)
-            if report["errors"]:
-                raise InspectionError(report)
-            if not stored_rows:
-                raise ValueError("저장할 데이터 행이 없음; 빈 가져오기를 취소함")
-            connection.execute("UPDATE import_batches SET row_count=?, inspection_json=? WHERE id=?",
-                               (stored_rows, encode_json(report), batch_id))
+            checkpoint_ids = {}
+            for index, record in enumerate(parsed.records):
+                analysis = record["analysis"]
+                checkpoint_ids[index] = connection.execute(
+                    "INSERT INTO checkpoints(batch_id, source_record_index, checkpoint_id, row_uid, sec_code, "
+                    "status, summary, issues_json, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (batch_id, index, record["checkpoint_id"], record["row_uid"], record["sec_code"], record["status"],
+                     analysis["summary"] if analysis else None,
+                     encode_json(analysis["issues"] if analysis else []), encode_json(record))
+                ).lastrowid
+            for row in parsed.rows:
+                check = row["raw"]
+                connection.execute(
+                    "INSERT INTO rules(batch_id, checkpoint_db_id, source_row, source_check_index, requirement_id, "
+                    "sec_code, specification, target_kind, target_description, applicability, level, parameters_json, "
+                    "required_design_facts_json, evidence_json, raw_json, issues_json, duplicate_first_row) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (batch_id, checkpoint_ids[row["record_index"]], row["source_row"], row["check_index"],
+                     check["requirement_id"], check["sec_code"], check["requirement"],
+                     check["target_kind"], check["target_description"], check["applicability"], check["level"],
+                     *(encode_json(check[name]) for name in ("parameters", "required_design_facts", "evidence")),
+                     encode_json(check), encode_json(row["issues"]), row["duplicate_first_row"]),
+                )
             connection.commit()
-            return {"status": "imported", "batch_id": batch_id, "stored_rows": stored_rows, "inspection": report}
+            return {"status": "imported", "batch_id": batch_id, "stored_rows": len(parsed.rows), "inspection": report}
         except BaseException:
             connection.rollback()
             raise
 
 
 def lookup_rules(database, sec_code, batch_id):
-    """Query one explicit snapshot. A miss is NOT_FOUND, never a PASS verdict."""
-    if not isinstance(sec_code, str) or not re.fullmatch(r"[0-9]{8}", sec_code.strip()):
-        raise ValueError("조회 SEC 코드는 원본과 같은 대시 없는 8자리 문자열이어야 함")
-    sec_code = sec_code.strip()
+    """Read one explicit rule snapshot. A miss is never a PASS verdict."""
+    sec_code = validate_sec_code(sec_code)
     if isinstance(batch_id, bool) or not isinstance(batch_id, int) or batch_id <= 0:
         raise ValueError("batch_id는 양의 정수여야 함")
     uri = Path(database).resolve().as_uri() + "?mode=ro"
@@ -193,15 +191,34 @@ def lookup_rules(database, sec_code, batch_id):
         if batch is None:
             raise ValueError(f"가져오기 batch_id={batch_id}가 없음")
         rows = connection.execute(
-            "SELECT * FROM rules WHERE batch_id=? AND sec_code=? ORDER BY rule_adminno, rule_seqno, source_row",
-            (batch_id, sec_code),
-        ).fetchall()
+            "SELECT r.*, c.summary, c.checkpoint_id, c.row_uid, c.source_record_index, "
+            "c.status AS checkpoint_status, c.issues_json AS checkpoint_issues_json "
+            "FROM rules r JOIN checkpoints c ON c.id=r.checkpoint_db_id AND c.batch_id=r.batch_id "
+            "WHERE r.batch_id=? AND r.sec_code=? ORDER BY r.source_row", (batch_id, sec_code)).fetchall()
+        checkpoints = [dict(item) for item in connection.execute(
+            "SELECT id, source_record_index, checkpoint_id, row_uid, sec_code, status, summary, "
+            "issues_json FROM checkpoints WHERE batch_id=? AND sec_code=? ORDER BY source_record_index",
+            (batch_id, sec_code))]
+        for checkpoint in checkpoints:
+            checkpoint["issues"] = json.loads(checkpoint.pop("issues_json"))
+            checkpoint["original_checkpoint"] = None
         results = []
         for row in rows:
             item = dict(row)
-            for name in ("raw", "selected", "issues"):
+            for name in ("raw", "issues", "parameters", "required_design_facts", "evidence", "checkpoint_issues"):
                 item[name] = json.loads(item.pop(name + "_json"))
+            item["source_json_pointer"] = f"/{item['source_record_index']}/analysis/checks/{item['source_check_index']}"
+            item.update(requirement=item["specification"], checkpoint=item["summary"],
+                        original_checkpoint=None, design_value=None)
+            item["selected"] = {**item["raw"], "summary": item["summary"], "checkpoint": item["summary"],
+                                "specification": item["specification"], "design_value": None,
+                                "original_checkpoint": None}
+            item["display_fields"] = {"checkPoint": item["summary"], "checkPoint_source": "analysis.summary",
+                                      "original_checkPoint": None, "specification": item["specification"],
+                                      "설계치": item["required_design_facts"], "설계치_kind": "required_design_facts"}
+            item["has_preprocessing_issues"] = bool(item["issues"] or item["checkpoint_issues"])
             results.append(item)
         return {"batch_id": batch_id, "sec_code": sec_code, "source_file": batch["source_file"],
-                "source_sha256": batch["source_sha256"], "mapping_sha256": batch["mapping_sha256"],
-                "match_status": "MATCHED" if results else "NOT_FOUND", "rules": results}
+                "source_sha256": batch["source_sha256"], "contract_sha256": batch["contract_sha256"],
+                "source_format": "json", "match_status": "MATCHED" if results else "NO_CHECKS" if checkpoints else "NOT_FOUND",
+                "checkpoints": checkpoints, "rules": results}

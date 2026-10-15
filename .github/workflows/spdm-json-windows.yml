@@ -1,0 +1,44 @@
+name: SPDM JSON on Windows
+
+"on":
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/spdm_import/**"
+      - ".github/workflows/spdm-json-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  json-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [pwsh, powershell]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify in a Unicode path without external Python packages
+        shell: ${{ matrix.shell }}
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Output ("PowerShell " + $PSVersionTable.PSVersion.ToString())
+          $SpdmPython = (python -c "import sys; print(sys.executable)").Trim()
+          $SpdmTestPath = Join-Path $env:RUNNER_TEMP "SPDM 한글 # 검증"
+          New-Item -ItemType Directory -Path $SpdmTestPath -Force | Out-Null
+          Get-ChildItem tools/spdm_import -Filter *.py | Copy-Item -Destination $SpdmTestPath
+          Copy-Item tools/spdm_import/analysis.schema.json -Destination $SpdmTestPath
+          Set-Location $SpdmTestPath
+          & $SpdmPython -S .\verify_environment.py --expect-windows --report .\windows-report.json
+          if ($LASTEXITCODE -ne 0) { throw "Windows acceptance verification failed" }
+          $SpdmReport = Get-Content .\windows-report.json -Raw -Encoding UTF8 | ConvertFrom-Json
+          if (-not $SpdmReport.windows_verified) { throw "Not an actual Windows verification" }
+          $SpdmReport | ConvertTo-Json -Depth 10

@@ -1,8 +1,6 @@
 # Java QCV 검사 데모 개발 가이드
 
-Python도 없는 Windows PC에서 SPDM 규칙 DB를 준비하려면 [처음 실행하기](SPDM_WINDOWS_FIRST_RUN.md)를 순서대로 따릅니다. 인터넷으로 설치 자료를 준비할 수 있으며 프로그램 실행에는 외부 API를 사용하지 않습니다.
-
-별도 로컬 Python 모듈인 SPDM 병합/정제 xlsx 도구는 [SPDM 가이드](SPDM_IMPORT.md)를 따릅니다. `python tools/spdm_import/inspect_rules.py INPUT.xlsx --report output/spdm/inspection.json`으로 점검하고, `python tools/spdm_import/import_rules.py INPUT.xlsx --db output/spdm/rules.sqlite`로 전체 행을 SQLite에 저장합니다. `query_rules.py`는 가져오기 ID와 SEC로 규칙을 조회하며 아래 Java CLI와의 연동은 구현하지 않았습니다.
+Rule 입력·저장·조회는 JSON 전용입니다. [JSON 실행 가이드](SPDM_JSON_RUN.md)와 [Windows 실행 안내](SPDM_WINDOWS_FIRST_RUN.md)를 따릅니다. Python 표준 라이브러리만 사용하며 `verify_environment.py`로 실제 실행 PC의 점검·적재·조회·재실행을 확인할 수 있습니다. 아래 Java QCV 검사 데모와의 자동 연동은 별도 단계입니다.
 
 공개 샘플을 읽어 부품·핀·넷을 구성하고, TPS56C230의 명목 FB 분압 Rule 하나를 계산한 뒤 JSON·HTML 보고서를 만듭니다. [최신 MVP 방향](MVP_REQUIREMENTS.md)을 위한 실행 가능한 출발점입니다. [샘플 안내](../samples/README.md)에 원본·직접 작성한 회로·기대 결과·개발용 허용 기준을 구분했습니다.
 
