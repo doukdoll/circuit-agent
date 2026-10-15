@@ -110,7 +110,7 @@ def parse_analysis(source, preview_limit=10, *, source_bytes=None):
         if record["status"] != "normalized":
             checkpoint_warnings.append(warn(f"/{index}/status", "normalized 이외 상태; 원문과 상태를 보존함"))
         if analysis is None or not analysis["checks"]:
-            warn(f"/{index}/analysis", "세부 규칙 없음; 체크포인트 이력만 보존함")
+            warn(f"/{index}/analysis", "세부 규칙 없음; 체크포인트 객체만 보존함")
         if analysis is None:
             continue
         for issue_index, issue in enumerate(analysis["issues"]):

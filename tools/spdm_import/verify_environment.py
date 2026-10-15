@@ -58,13 +58,12 @@ def verify(source=None, *, expect_windows=False):
             run(app / "inspect_json_rules.py", input_path, "--report", inspection_path, "--preview", 1)
             run(app / "import_rules.py", input_path, "--db", db, "--report", import_path, "--preview", 1)
             imported = json.loads(import_path.read_text(encoding="utf-8"))
-            batch_id = imported["batch_id"]
             if imported["stored_rows"] != len(expected_checks):
                 raise ValueError("세부 규칙 전체 저장 건수가 다름")
             for index, sec in enumerate(sorted({record["sec_code"] for record in reference})):
                 expected = [check for check in expected_checks if check["sec_code"] == sec]
                 query_path = root / f"조회 결과 {index}.json"
-                run(app / "query_rules.py", db, "--batch-id", batch_id, "--sec-code", sec,
+                run(app / "query_rules.py", db, "--sec-code", sec,
                     "--output", query_path, expected=0 if expected else 3)
                 queried = json.loads(query_path.read_text(encoding="utf-8"))
                 if [item["raw"] for item in queried["rules"]] != expected:
@@ -87,28 +86,31 @@ def verify(source=None, *, expect_windows=False):
                                     parent_raw_issues=True, foreign_keys=True, unicode_space_paths=True)
             run(app / "import_rules.py", input_path, "--db", db, "--report", import_path, "--preview", 0)
             repeated = json.loads(import_path.read_text(encoding="utf-8"))
-            if repeated["status"] != "skipped" or repeated["batch_id"] != batch_id:
-                raise ValueError("동일 파일 재실행 스킵 실패")
-            report["checks"]["repeat_skipped"] = True
+            if repeated["status"] != "replaced" or repeated["stored_rows"] != len(expected_checks):
+                raise ValueError("동일 파일 재실행 시 최신 규칙 유지 실패")
+            report["checks"]["repeat_without_accumulation"] = True
             changed = json.loads(raw.decode("utf-8-sig"))
             changed[0]["status"] += "-environment-test"
             input_path.write_text(json.dumps(changed, ensure_ascii=False), encoding="utf-8")
             run(app / "import_rules.py", input_path, "--db", db, "--report", import_path)
             changed_import = json.loads(import_path.read_text(encoding="utf-8"))
-            if changed_import["status"] != "imported" or changed_import["batch_id"] == batch_id:
-                raise ValueError("내용 변경 시 새 가져오기 생성 실패")
+            if changed_import["status"] != "replaced":
+                raise ValueError("내용 변경 시 최신 규칙 교체 실패")
             with closing(sqlite3.connect(db)) as connection:
-                if connection.execute("SELECT COUNT(*) FROM import_batches").fetchone()[0] != 2:
-                    raise ValueError("과거 가져오기 보존 실패")
-            report["checks"]["changed_input_new_batch"] = True
+                current = connection.execute("SELECT raw_json FROM checkpoints ORDER BY source_record_index").fetchall()
+                if [json.loads(row[0]) for row in current] != changed:
+                    raise ValueError("최신 JSON 전체 교체 실패")
+                if connection.execute("SELECT COUNT(*) FROM rules").fetchone()[0] != len(expected_checks):
+                    raise ValueError("이전 규칙이 누적됨")
+            report["checks"]["changed_input_replaces_current"] = True
+            before_invalid = db.read_bytes()
             del changed[0]["row_uid"]
             input_path.write_text(json.dumps(changed, ensure_ascii=False), encoding="utf-8")
             run(app / "import_rules.py", input_path, "--db", db, "--report", import_path, expected=2)
             if json.loads(import_path.read_text(encoding="utf-8"))["status"] != "rejected":
                 raise ValueError("잘못된 JSON 거부 실패")
-            with closing(sqlite3.connect(db)) as connection:
-                if connection.execute("SELECT COUNT(*) FROM import_batches").fetchone()[0] != 2:
-                    raise ValueError("잘못된 입력으로 DB가 변경됨")
+            if db.read_bytes() != before_invalid:
+                raise ValueError("잘못된 입력으로 DB가 변경됨")
             report["checks"]["invalid_input_preserves_db"] = True
             report.update(checkpoint_count=len(reference), rule_count=len(expected_checks),
                           sec_count=len({record["sec_code"] for record in reference}),
@@ -129,7 +131,7 @@ def main(argv=None):
     parser.add_argument("--expect-windows", action="store_true", help="실제 Windows가 아니면 실패 처리")
     args = parser.parse_args(argv)
     try:
-        distinct_paths(args.input, args.report)
+        distinct_paths(args.input, Path(__file__).with_name("analysis.schema.json"), args.report)
         result = verify(args.input, expect_windows=args.expect_windows)
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")

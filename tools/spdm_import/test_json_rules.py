@@ -47,7 +47,7 @@ class JSONRulesTest(unittest.TestCase):
     def counts(self):
         with closing(sqlite3.connect(self.db)) as connection:
             return tuple(connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
-                         for name in ("import_batches", "checkpoints", "rules"))
+                         for name in ("checkpoints", "rules"))
 
     def test_parent_checks_and_structures_roundtrip_without_observed_values(self):
         records = [synthetic_record(checks=12), synthetic_record("1234-567890", "synthetic:2", 1)]
@@ -57,8 +57,8 @@ class JSONRulesTest(unittest.TestCase):
         result = import_analysis(self.source, self.db, preview_limit=1)
         self.assertEqual(13, result["stored_rows"])
         self.assertEqual(1, len(result["inspection"]["preview"]))
-        self.assertEqual((1, 2, 13), self.counts())
-        rules = lookup_rules(self.db, "00112233", result["batch_id"])["rules"]
+        self.assertEqual((2, 13), self.counts())
+        rules = lookup_rules(self.db, "00112233")["rules"]
         self.assertEqual(12, len(rules))
         first = rules[0]
         self.assertEqual(records[0]["analysis"]["checks"][0], first["raw"])
@@ -73,26 +73,63 @@ class JSONRulesTest(unittest.TestCase):
         self.assertEqual("/0/analysis/checks/0", first["source_json_pointer"])
         self.assertTrue(first["has_preprocessing_issues"])
         self.assertEqual("ambiguous", first["checkpoint_issues"][0]["code"])
-        self.assertEqual("MATCHED", lookup_rules(self.db, "1234-567890", result["batch_id"])["match_status"])
+        self.assertEqual("MATCHED", lookup_rules(self.db, "1234-567890")["match_status"])
         with closing(sqlite3.connect(self.db)) as connection:
             self.assertEqual(records[0], json.loads(connection.execute(
                 "SELECT raw_json FROM checkpoints ORDER BY id LIMIT 1").fetchone()[0]))
             self.assertEqual([], connection.execute("PRAGMA foreign_key_check").fetchall())
         self.assertEqual(original, self.source.read_bytes())
 
-    def test_utf8_bom_reimport_and_changed_values_make_new_snapshot(self):
+    def test_utf8_bom_reimport_and_changed_values_replace_current_rules(self):
         record = synthetic_record()
         self.source.write_text(json.dumps([record]), encoding="utf-8-sig")
         first = import_analysis(self.source, self.db)
+        self.assertEqual("imported", first["status"])
         second = import_analysis(self.source, self.db, preview_limit=0)
-        self.assertEqual("skipped", second["status"])
+        self.assertEqual("replaced", second["status"])
         self.assertEqual([], second["inspection"]["preview"])
+        self.assertEqual((1, 2), self.counts())
         record["analysis"]["checks"][0]["parameters"][0]["value"] = 0
         self.write([record])
         third = import_analysis(self.source, self.db)
-        self.assertNotEqual(first["batch_id"], third["batch_id"])
-        self.assertEqual(0.1, lookup_rules(self.db, "00112233", first["batch_id"])["rules"][0]["parameters"][0]["value"])
-        self.assertEqual(0, lookup_rules(self.db, "00112233", third["batch_id"])["rules"][0]["parameters"][0]["value"])
+        self.assertEqual("replaced", third["status"])
+        self.assertEqual((1, 2), self.counts())
+        self.assertEqual(0, lookup_rules(self.db, "00112233")["rules"][0]["parameters"][0]["value"])
+
+    def test_add_change_delete_and_removed_sec_keep_only_latest_input(self):
+        self.write([synthetic_record(checks=35)])
+        import_analysis(self.source, self.db)
+        self.assertEqual((1, 35), self.counts())
+        record = synthetic_record(checks=36)
+        self.write([record])
+        import_analysis(self.source, self.db)
+        self.assertEqual((1, 36), self.counts())
+        record["analysis"]["checks"][0]["requirement"] = "변경된 최신 규격"
+        self.write([record])
+        import_analysis(self.source, self.db)
+        self.assertEqual((1, 36), self.counts())
+        self.assertEqual("변경된 최신 규격", lookup_rules(self.db, "00112233")["rules"][0]["specification"])
+        self.write([synthetic_record("1234-567890", "synthetic:2", 1)])
+        import_analysis(self.source, self.db)
+        self.assertEqual((1, 1), self.counts())
+        self.assertEqual("NOT_FOUND", lookup_rules(self.db, "00112233")["match_status"])
+        self.assertEqual(1, len(lookup_rules(self.db, "1234-567890")["rules"]))
+
+    def test_repeated_import_does_not_accumulate_rows_tables_or_pages(self):
+        self.write([synthetic_record(checks=36)])
+        import_analysis(self.source, self.db)
+        with closing(sqlite3.connect(self.db)) as connection:
+            initial_pages = connection.execute("PRAGMA page_count").fetchone()[0]
+        for _ in range(25):
+            import_analysis(self.source, self.db)
+        self.assertEqual((1, 36), self.counts())
+        with closing(sqlite3.connect(self.db)) as connection:
+            self.assertEqual(initial_pages, connection.execute("PRAGMA page_count").fetchone()[0])
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            self.assertEqual({"checkpoints", "rules"}, tables)
+            for table in tables:
+                columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+                self.assertNotIn("batch_id", columns)
 
     def test_fixed_fields_types_sec_and_inner_outer_consistency_are_validated(self):
         cases = []
@@ -124,11 +161,11 @@ class JSONRulesTest(unittest.TestCase):
         self.write([first, second])
         result = import_analysis(self.source, self.db)
         self.assertEqual(0, result["stored_rows"])
-        self.assertEqual((1, 2, 0), self.counts())
-        matched = lookup_rules(self.db, "00112233", result["batch_id"])
+        self.assertEqual((2, 0), self.counts())
+        matched = lookup_rules(self.db, "00112233")
         self.assertEqual("NO_CHECKS", matched["match_status"])
         self.assertEqual(1, len(matched["checkpoints"]))
-        self.assertEqual("NOT_FOUND", lookup_rules(self.db, "99998888", result["batch_id"])["match_status"])
+        self.assertEqual("NOT_FOUND", lookup_rules(self.db, "99998888")["match_status"])
 
     def test_new_target_values_parameter_types_and_duplicates_preserved(self):
         record = synthetic_record()
@@ -140,7 +177,7 @@ class JSONRulesTest(unittest.TestCase):
         self.write([record])
         result = import_analysis(self.source, self.db)
         self.assertEqual(1, len(result["inspection"]["duplicate_candidates"]))
-        rules = lookup_rules(self.db, "00112233", result["batch_id"])["rules"]
+        rules = lookup_rules(self.db, "00112233")["rules"]
         self.assertEqual(2, len(rules))
         self.assertEqual([False, 0, {"minimum": 1, "maximum": 3}], rules[0]["parameters"][0]["value"])
         self.assertEqual(1, rules[1]["duplicate_first_row"])
@@ -163,16 +200,20 @@ class JSONRulesTest(unittest.TestCase):
             connection.execute("""CREATE TRIGGER fail_json_rule BEFORE INSERT ON rules
                 WHEN NEW.specification='explode' BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END""")
             connection.commit()
+        before = lookup_rules(self.db, "00112233")
         record = synthetic_record()
+        record["analysis"]["summary"] = "실패한 변경"
+        record["analysis"]["checks"][0]["requirement"] = "먼저 삽입된 변경"
         record["analysis"]["checks"][1]["requirement"] = "explode"
         self.write([record])
         with self.assertRaises(sqlite3.IntegrityError):
             import_analysis(self.source, self.db)
-        self.assertEqual((1, 1, 2), self.counts())
+        self.assertEqual((1, 2), self.counts())
+        self.assertEqual(before, lookup_rules(self.db, "00112233"))
 
     def test_unsupported_versions_and_foreign_database_are_unchanged(self):
         self.write([synthetic_record()])
-        for version in (1, 2, 999):
+        for version in (1, 2, 3, 999):
             with self.subTest(version=version):
                 self.db.unlink(missing_ok=True)
                 result = import_analysis(self.source, self.db)
@@ -182,7 +223,7 @@ class JSONRulesTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     import_analysis(self.source, self.db)
                 with self.assertRaises(ValueError):
-                    lookup_rules(self.db, "00112233", result["batch_id"])
+                    lookup_rules(self.db, "00112233")
                 self.assertEqual(before, self.db.read_bytes())
         self.db.unlink()
         with closing(sqlite3.connect(self.db)) as connection:
@@ -195,30 +236,23 @@ class JSONRulesTest(unittest.TestCase):
 
     def test_query_is_read_only_and_missing_database_is_not_created(self):
         with self.assertRaises(sqlite3.OperationalError):
-            lookup_rules(self.db, "00112233", 1)
+            lookup_rules(self.db, "00112233")
         self.assertFalse(self.db.exists())
         self.write([synthetic_record()])
         result = import_analysis(self.source, self.db)
         before = self.db.read_bytes()
-        lookup_rules(self.db, "00112233", result["batch_id"])
+        lookup_rules(self.db, "00112233")
         self.assertEqual(before, self.db.read_bytes())
         with self.assertRaises(ValueError):
-            lookup_rules(self.db, "00112233", 999)
-        with self.assertRaises(ValueError):
-            lookup_rules(self.db, "00112233", True)
+            lookup_rules(self.db, "invalid-sec")
 
-    def test_parent_from_another_snapshot_cannot_be_linked(self):
+    def test_missing_parent_cannot_be_linked(self):
         self.write([synthetic_record()])
-        first = import_analysis(self.source, self.db)
-        changed = synthetic_record()
-        changed["analysis"]["summary"] = "다음 버전"
-        self.write([changed])
-        second = import_analysis(self.source, self.db)
+        import_analysis(self.source, self.db)
         with closing(sqlite3.connect(self.db)) as connection:
             connection.execute("PRAGMA foreign_keys=ON")
-            first_checkpoint = connection.execute("SELECT id FROM checkpoints WHERE batch_id=?", (first["batch_id"],)).fetchone()[0]
             with self.assertRaises(sqlite3.IntegrityError):
-                connection.execute("UPDATE rules SET checkpoint_db_id=? WHERE batch_id=?", (first_checkpoint, second["batch_id"]))
+                connection.execute("UPDATE rules SET checkpoint_db_id=999999")
             connection.rollback()
             self.assertEqual([], connection.execute("PRAGMA foreign_key_check").fetchall())
 
@@ -228,7 +262,7 @@ class JSONRulesTest(unittest.TestCase):
             "socket.create_connection", side_effect=AssertionError("network is disabled")
         ):
             result = import_analysis(self.source, self.db)
-            query = lookup_rules(self.db, "00112233", result["batch_id"])
+            query = lookup_rules(self.db, "00112233")
         self.assertEqual(2, len(query["rules"]))
 
     def test_json_cli_inspect_import_query_and_collisions(self):
@@ -237,7 +271,7 @@ class JSONRulesTest(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(0, inspect_main([str(self.source), "--report", str(report)]))
             self.assertEqual(0, import_main([str(self.source), "--db", str(self.db), "--report", str(report)]))
-            self.assertEqual(0, query_main([str(self.db), "--batch-id", "1", "--sec-code", "00112233", "--output", str(report)]))
+            self.assertEqual(0, query_main([str(self.db), "--sec-code", "00112233", "--output", str(report)]))
         self.assertEqual(2, len(json.loads(report.read_text(encoding="utf-8"))["rules"]))
         original = self.source.read_bytes()
         with redirect_stderr(io.StringIO()):

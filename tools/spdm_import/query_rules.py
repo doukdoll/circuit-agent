@@ -10,15 +10,14 @@ from sqlite_store import distinct_paths, lookup_rules
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="SQLite의 지정 가져오기에서 SEC 코드별 규칙 전체 조회")
+    parser = argparse.ArgumentParser(description="SQLite의 최신 규칙을 SEC 코드별 전체 조회")
     parser.add_argument("db", type=Path)
-    parser.add_argument("--batch-id", type=int, required=True)
     parser.add_argument("--sec-code", required=True)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
     try:
         distinct_paths(args.db, args.output)
-        result = lookup_rules(args.db, args.sec_code, args.batch_id)
+        result = lookup_rules(args.db, args.sec_code)
         content = json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False)
         if args.output is not None:
             args.output.parent.mkdir(parents=True, exist_ok=True)

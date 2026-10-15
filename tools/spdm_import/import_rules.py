@@ -26,14 +26,14 @@ def main(argv=None):
         if args.report is not None:
             args.report.parent.mkdir(parents=True, exist_ok=True)
             args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
-        print(f"상태={result['status']}, batch_id={result.get('batch_id')}, "
+        print(f"상태={result['status']}, "
               f"저장행={result['stored_rows']}, 오류={result['inspection']['errors']}, "
               f"경고={result['inspection']['warnings']}, "
               f"중복후보={len(result['inspection']['duplicate_candidates'])}")
         return 2 if result["status"] == "rejected" else 0
     except (OSError, ValueError, KeyError, TypeError, OverflowError, sqlite3.Error, RecursionError) as error:
-        if result is not None and result.get("status") in {"imported", "skipped"}:
-            print(f"DB 적재는 완료됨(batch_id={result['batch_id']}); 보고서 기록 실패: {error}", file=sys.stderr)
+        if result is not None and result.get("status") in {"imported", "replaced"}:
+            print(f"DB 최신 규칙 반영은 완료됨; 보고서 기록 실패: {error}", file=sys.stderr)
         else:
             print(f"적재 오류(이번 가져오기 저장 없음): {error}", file=sys.stderr)
         return 2

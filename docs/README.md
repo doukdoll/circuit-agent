@@ -1,6 +1,6 @@
 # circuit-agent
 
-- [전처리 JSON 저장·조회 실행 가이드](SPDM_JSON_RUN.md) — 고정 analysis JSON 계약, 표준 라이브러리 실행, 구조화 규칙 저장·조회
+- [전처리 JSON 저장·조회 실행 가이드](SPDM_JSON_RUN.md) — 고정 analysis JSON 계약, 표준 라이브러리 실행, 최신 전체 JSON 교체·SEC 조회
 
 - [추가 요구사항 및 MVP 개발 방향](MVP_REQUIREMENTS.md) — 현재 MVP 범위의 기준
 - [프로젝트 요구사항](PROJECT_REQUIREMENTS.md) — 최초 기획 자료
