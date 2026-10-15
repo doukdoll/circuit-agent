@@ -253,6 +253,10 @@ PowerShell을 닫으면 변수가 사라진다. 재시작할 때 3장의 경로 
 
 최신 규칙 전용 v4는 Linux/Python 3.12.14에서 가상 테스트 15개와 첨부 JSON의 전체 저장·조회·원문/타입 보존·재실행을 검증했다. 첨부본은 10체크포인트/35규칙/3SEC이며 분석 이슈 11개를 보존한다. 35→36개 추가, 규격 변경, 이전 SEC 삭제, 25회 동일 입력에서 행·페이지 비누적, 삭제 후 부분 삽입 오류 시 기존 데이터 복구를 포함한다. Python -S와 외부 패키지 없는 별도 환경에서 배포를 검증한다.
 
-앞선 v3는 Windows Server 2025/Python 3.12.10의 PowerShell 5.1/7에서 [성공한 기록](https://github.com/doukdoll/circuit-agent/actions/runs/38720635486)이 있다. 이 기록은 이번 v4 변경을 실행한 결과가 아니다. 이번 버전은 아직 실제 Windows에서 재실행하지 않았으며 해당 환경에서 위의 `verify_environment.py --expect-windows --input ...` 명령으로 확인한다.
+최신 v4는 실제 Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1에서도 검증했다. Windows PowerShell 5.1.26100.33438과 PowerShell 7.6.6 각각 테스트 15개와 JSON 파일 환경 검증 전체가 통과했다. [Windows 실행 근거](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083).
+
+Windows에서는 직접 만든 가상 UTF-8 BOM JSON(10체크포인트/35규칙/3SEC/분석 이슈 11개)을 파일로 생성하여 `--input`으로 전달했다. 한글·공백·# 경로에서 Python -S로 실행했고 보고서의 `system=Windows`, `windows_verified=true`, 모든 checks 성공을 확인했다. 실제 첨부본은 Windows CI에 전송하지 않았다.
+
+회사 PC에서는 4장의 `verify_environment.py --expect-windows --input ...` 명령으로 실제 JSON과 파일 접근 조건까지 확인한다. PowerShell 5.1용 .ps1 파일에 한글 문자열을 직접 넣어 저장한다면 UTF-8 BOM으로 저장한다. 안내된 명령을 PowerShell 창에 직접 붙여넣어 실행할 때는 .ps1 파일 저장이 필요 없다.
 
 실제 회사 PC의 파일 접근·DRM 조건과 QCV/BOM·Gemini 판정은 별도 검증 범위다. 실제 회사 데이터를 외부 CI로 전송하지 않는다.

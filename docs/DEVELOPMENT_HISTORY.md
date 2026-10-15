@@ -259,9 +259,12 @@ CRLF 사본 SHA-256:
 
 ### 2026-10-15 — 최신 규칙 v4의 실제 Windows JSON 테스트
 
-- **상태:** 실제 Windows CI 실행 준비. 사용자가 v4를 Windows에서 JSON으로 테스트하도록 요청했으며 기존에 승인한 코드 게시·Windows 테스트 목적과 경로로 진행.
+- **상태:** 실제 Windows CI에서 PowerShell 5.1/7 모두 성공. 사용자가 v4를 Windows에서 JSON으로 테스트하도록 요청했으며 기존에 승인한 코드 게시·Windows 테스트 목적과 경로로 진행.
 - **변경:** PowerShell 5.1/7 각각 UTF-8 BOM의 가상 JSON 파일(10체크포인트/35규칙/3SEC/분석 이슈 11개)을 명시적으로 생성하고 --input으로 전달하도록 workflow 보강. 부품 코드·규칙 문구·이슈는 직접 만든 가상 값이며 실제 회사 입력을 사용하지 않음.
 - **검증 범위:** 스키마 v4의 15개 테스트와 저장→모든 SEC 조회→원문/타입 보존→동일 입력 비누적→최신 교체→잘못된 입력 거부를 실제 Windows에서 실행 예정. 초기 JSON 파일을 수정하지 않았는지도 검증. 실행 결과는 완료 후 추가.
 - **게시:** feat/spdm-inspection에 최신 규칙 전용 코드·문서·가상 테스트·workflow만 게시. 실제 첨부 JSON·DB·보고서 및 배포 ZIP은 제외. main 병합은 수행하지 않음.
 
 - **첫 실행:** run 38721867130에서 PowerShell 7의 v4 테스트 15개·명시적 JSON 파일 환경 검증 성공. PowerShell 5.1은 Python 시작 전 ps1 문자열 종료 파싱 오류로 실패. UTF-8 BOM 없는 실행 스크립트의 한글 파일명 해석 문제를 피하도록 workflow 본문을 ASCII로 바꾸고 한글 작업 경로는 Unicode 코드 포인트로 생성. 입력 JSON은 UTF-8 BOM과 한글 내용을 그대로 유지하며 Python 내부 한글/공백/# 경로 검증도 유지. 수정 후 재실행 결과를 별도 기록.
+
+- **v4 최종 Windows 근거:** [run 38722021083](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083), 구현 02833ab 및 CI 인코딩 수정 74296ab 기준. Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1. Windows PowerShell 5.1.26100.33438(job 116378634794)과 PowerShell 7.6.6(job 116378635177) 각각 테스트 15개 및 명시적 UTF-8 BOM JSON 파일 검증 전체 성공. 10체크포인트/35규칙/3SEC/분석 이슈 11개 보존, 원문·구조화 타입·모든 SEC 조회·외래키·반복 비누적·최신 교체·잘못된 입력 시 기존 DB 보존·원본 불변 확인. 35→36개 추가·규격 변경·SEC 삭제·25회 페이지 비누적·SQL 롤백은 함께 실행된 15개 테스트에 포함.
+- **완료/배포:** 실행 결과는 output/spdm/latest-validation/windows-powershell51.json 및 windows-pwsh7.json으로 로컬 보관. JSON 실행 가이드와 ZIP의 MD를 최신 v4 Windows 성공 근거로 갱신. 테스트한 런타임 코드는 그대로이며 문서 갱신 후 테스트를 새로 수행한 것으로 기록하지 않음. feat/spdm-inspection에 일반 푸시하고 PR #2 설명 갱신. 실제 회사 파일은 게시하지 않음.
