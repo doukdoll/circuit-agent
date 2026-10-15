@@ -239,3 +239,5 @@ CRLF 사본 SHA-256:
 - **Windows 구성:** GitHub Actions windows-latest에서 PowerShell 7(pwsh)와 Windows PowerShell 5.1(powershell)을 각각 사용해 가상 데이터로 실행하는 workflow 준비. 실행/성공 결과는 아직 없음. 회사 PC의 접근 권한·DRM 조건은 그 PC에서 제공된 환경 검증 명령으로 별도 확인 필요.
 - **문서:** JSON 실행 가이드·기존 진입 문서·목차·개발 가이드 갱신. 추가 설치 패키지·가상환경 활성화·외부 API 없이 실행하며 새 DB 경로 사용.
 - **범위/게시:** QCV/BOM 파싱·Gemini 판정은 변경/검증하지 않음. 기존 작업 브랜치 feat/spdm-inspection 사용. 사용자가 이번 코드·문서·가상 Windows workflow의 커밋·푸시·PR 갱신 및 Windows 테스트 실행을 승인. 실제 데이터 산출물은 로컬에 유지.
+
+- **Windows CI 초기 오류:** 첫 workflow는 shell 속성의 matrix 표현식이 GitHub 문맥 검사에서 거부되어 작업 시작 전 실패(run 38720451877). YAML 파싱 성공만으로 GitHub 표현식 유효성을 입증할 수 없었음. 각 step의 shell을 pwsh/powershell 상수로 지정하고 if 조건으로 선택하도록 수정해 재실행. Python 기능 오류나 Windows 런타임 테스트 실패와 구분.
