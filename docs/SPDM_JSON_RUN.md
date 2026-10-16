@@ -268,7 +268,7 @@ v6는 Linux/Python 3.12에서 테스트 24개를 실행했다. applicability의 
 
 사내 Windows 11/Python 3.15.0 사용자가 제공한 오류 경로에서 applicability:null 및 선택 error 필드가 확인됐다. 처음 받은 부분 샘플에 없던 값/메타데이터를 지원하도록 수정한 것이다. 현재 보여 준 오류는 처음 10개이며 전체 28개를 아직 확인하지 않아 실제 입력 전체 성공을 보장하지 않는다.
 
-v6는 아직 실제 Windows에서 재실행하지 않았다. 이전 v5의 [Windows 18개 테스트 성공](https://github.com/doukdoll/circuit-agent/actions/runs/38841920516)은 과거 결과다. 회사 PC에서는 4장의 명령으로 실제 JSON을 다시 확인하고 실패하면 failed_step.inspection.issues 또는 별도 검사 명령의 path/reason을 확인한다.
+v6는 Windows Server 2025/Python 3.12.10에서 PowerShell 5.1.26100.33438과 7.6.6 각각 테스트 24개 및 JSON 환경 검증 전체가 통과했다. [v6 Windows 실행 근거](https://github.com/doukdoll/circuit-agent/actions/runs/38844322522), 구현 72a84c7 기준. null 적용 범위와 error/analysis:null 항목이 포함된 가상 11체크포인트/35규칙/3SEC 파일을 사용했다. 회사 Windows 11/Python 3.15의 실제 전체 입력을 검증한 결과는 아니다. 회사 PC에서는 4장의 명령으로 다시 확인하고 실패하면 failed_step.inspection.issues 또는 별도 검사 명령의 path/reason을 확인한다.
 
 실제 회사 데이터는 외부 CI로 전송하지 않는다. QCV/BOM 사실 추출·Gemini 판정 및 회사 PC 접근/DRM은 별도 범위다.
 

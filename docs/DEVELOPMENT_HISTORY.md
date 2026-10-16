@@ -304,8 +304,8 @@ CRLF 사본 SHA-256:
 | TS-004 | Windows CI의 matrix 셸 표현식 거부 | 수정 후 실제 Windows CI 성공 |
 | TS-005 | PowerShell 5.1 실행 스크립트 문자열 파싱 오류 | 수정 후 실제 Windows CI 성공 |
 | TS-006 | SEC 길이·하이픈 제한으로 다른 형식 수용 불가 | v5 구현 및 Linux/Windows 테스트 성공 |
-| TS-007 | environment.json에 실제 입력 검사 실패 사유 누락 | 로컬 수정·회귀 검증 완료, 사용자 PC 재검증 대기 |
-| TS-008 | 실제 JSON의 null·선택 error와 부분 샘플 기반 계약 불일치 | v6 로컬 수정·가상 재현 검증 완료, 사내 전체 입력 재검증 대기 |
+| TS-007 | environment.json에 실제 입력 검사 실패 사유 누락 | 로컬·Windows CI 회귀 검증 완료, 사용자 PC 재검증 대기 |
+| TS-008 | 실제 JSON의 null·선택 error와 부분 샘플 기반 계약 불일치 | v6 로컬·Windows CI 검증 완료, 사내 전체 입력 재검증 대기 |
 
 ### TS-004 — Windows CI 셸 표현식이 실행 전 거부됨
 
@@ -358,9 +358,12 @@ CRLF 사본 SHA-256:
 - **로컬 재검증:** Linux/Python 3.12에서 v6 테스트 24개 통과. null의 SQL/JSON 왕복, error의 null/문자열/객체 보존, checks 없는 분석 실패의 NO_CHECKS, checks와 error 병존 시 검토 표시, 예상하지 않은 필드 거부, 기존 v5 보호를 확인했다. 별도 패키지 없는 venv에 v6 ZIP 10개 파일을 추출해 가상 혼합 데이터의 점검·저장·SEC 조회·최신 교체 전 과정도 통과했다. 실제 사내 파일을 가져와 실행한 결과가 아니다.
 - **상태/다음 확인:** 로컬 구현·재현 검증 완료. 전체 28개 중 처음 10개만 확인했으므로 나머지가 같은 유형인지, error의 실제 자료형이 무엇인지, 수정 후 사내 전체 입력이 통과하는지는 미확인이다. 전체 오류의 path/reason과 error 자료형만 요청했으며 실제 규칙 문구나 원문 오류 메시지를 요구하지 않았다. 사내 재검증 결과를 받으면 이 항목의 상태와 결과를 갱신한다.
 - **재발 방지:** 정제 담당자와 필수/선택 키 및 필드별 null 허용 여부를 명시한다. 부분 샘플에서 보이지 않은 값 상태를 전체 계약으로 단정하지 않는다. 분석 성공·실패·미완료 입력을 가상 테스트에 포함한다. 오류가 난다고 모든 additionalProperties/타입 검사를 한꺼번에 해제하지 않는다. 사용자 PC에서 수정이 필요하면 정확한 원본→수정본과 새 DB 필요 여부를 먼저 안내한다.
-- **관련 파일:** JSON 계약·파서·SQLite 저장/조회·환경 점검기·가상 테스트·[실행 가이드](SPDM_JSON_RUN.md). 이번 v6 및 진단 수정은 현재 로컬 작업 트리에 있으며 아직 커밋·푸시하지 않았다.
+- **관련 파일:** JSON 계약·파서·SQLite 저장/조회·환경 점검기·가상 테스트·[실행 가이드](SPDM_JSON_RUN.md). 이번 v6 및 진단 수정은 72a84c7로 feat/spdm-inspection에 커밋·푸시했다. Windows CI 결과는 아래 게시 기록에 추가했으며 사내 전체 입력 재검증은 대기 중이다.
 
 ### v6 수정 및 트러블슈팅 기록 게시
 
 - 사용자가 v6 수정·진단 개선·트러블슈팅 기록의 커밋·푸시를 승인. 기존 feat/spdm-inspection 브랜치와 PR #2를 갱신하며 main 병합은 수행하지 않음.
 - Windows CI 가상 JSON에 applicability:null, checks와 error가 함께 있는 항목, analysis:null/status:error 항목을 추가. 11체크포인트/35규칙/3SEC 가상 파일로 두 PowerShell 환경에서 확인. 회사 원본은 포함하지 않음. 실행 결과는 완료 후 기록.
+
+- **최종 Windows/게시 근거:** 구현 72a84c7을 feat/spdm-inspection에 일반 푸시. [run 38844322522](https://github.com/doukdoll/circuit-agent/actions/runs/38844322522)에서 Windows Server 2025/Python 3.12.10, PowerShell 5.1.26100.33438(job 116791274539)과 7.6.6(job 116791274357) 각각 테스트 24개 및 JSON CLI 환경 검증 전체 성공. 가상 11체크포인트/35규칙/3SEC 파일에 null 적용 범위와 분석 실패 항목 포함. 검사 진단 보존과 null/error 왕복은 24개 테스트에 포함. 이 결과는 사내 Windows 11/Python 3.15의 실제 전체 입력 성공을 뜻하지 않는다.
+- **문서/검증 구분:** 트러블슈팅 TS-004~008, 수동 원본→수정본 및 새 DB 경로를 같은 PR #2에 포함. 위 결과 확인 후 문서만 갱신하며 런타임 테스트를 새로 반복한 결과로 표현하지 않음. 실제 입력·DB·보고서·배포 ZIP은 Git 게시에서 제외.
