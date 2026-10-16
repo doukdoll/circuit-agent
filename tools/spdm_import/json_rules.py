@@ -109,6 +109,8 @@ def parse_analysis(source, preview_limit=10, *, source_bytes=None):
         checkpoint_warnings = []
         if record["status"] != "normalized":
             checkpoint_warnings.append(warn(f"/{index}/status", "normalized 이외 상태; 원문과 상태를 보존함"))
+        if record.get("error"):
+            checkpoint_warnings.append(warn(f"/{index}/error", "원본 error 필드에 분석 오류 정보가 있음; 보존함"))
         if analysis is None or not analysis["checks"]:
             warn(f"/{index}/analysis", "세부 규칙 없음; 체크포인트 객체만 보존함")
         if analysis is None:
@@ -120,6 +122,8 @@ def parse_analysis(source, preview_limit=10, *, source_bytes=None):
         for check_index, check in enumerate(analysis["checks"]):
             path = f"/{index}/analysis/checks/{check_index}"
             row_warnings = list(checkpoint_warnings)
+            if check["applicability"] is None:
+                row_warnings.append(warn(path + "/applicability", "적용 범위 미제공; null을 그대로 보존함"))
             if check["sec_code"] != record["sec_code"]:
                 report["issues"].append({"path": path + "/sec_code", "severity": "error",
                                          "reason": "상위 체크포인트와 세부 규칙의 SEC가 다름"})

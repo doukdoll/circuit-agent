@@ -277,3 +277,90 @@ CRLF 사본 SHA-256:
 - **문서/게시:** 실행 가이드·개발 가이드·모듈 README를 새 DB/스키마/SEC 정책으로 갱신. feat/spdm-inspection에 소스·문서·가상 테스트만 커밋·일반 푸시하고 PR #2 갱신. 실제 회사 입력·DB·보고서는 게시하지 않음.
 
 - **v5 Windows/배포 결과:** [run 38841920516](https://github.com/doukdoll/circuit-agent/actions/runs/38841920516), 구현 15478f3 기준. Windows Server 2025/Python 3.12.10, PowerShell 5.1.26100.33438(job 116783734525)과 7.6.6(job 116783734256) 각각 테스트 18개 및 명시적 JSON 파일 환경 검증 전체 통과. 8자리·10자리·하이픈 포함 SEC의 가상 JSON 사용, 한글/공백/# 경로·최신 교체·원문/타입 보존·오류 거부 확인. 새 spdm-json-flex.zip(10개 파일)을 pip/외부 패키지 없는 별도 환경에 추출하여 Python -S로 18개 테스트와 혼합 SEC 가상 JSON CLI 검증 통과. schema_v5.sql 초기화 확인. 이후 문서만 갱신하며 런타임 테스트를 다시 실행한 결과로 표현하지 않음. 실제 입력/DB/보고서는 ZIP과 게시 대상에서 제외.
+
+### 2026-10-16 — 환경 검증의 실제 JSON 검사 오류 사유 누락 수정
+
+- **사용자 확인:** 사내 Windows 11/Python 3.15.0/SQLite 3.53.4에서 기존 가상 테스트 18개 통과 후 실제 입력 inspect 단계가 종료 2로 실패. stderr가 비어 environment.json의 error에 실제 원인이 표시되지 않음. 사용자 제공 보고서에 근거하며 해당 PC나 입력을 직접 재현한 결과가 아님.
+- **확인된 코드 문제:** inspect CLI는 구조/값 오류를 JSON 보고서와 stdout에 쓰지만 환경 점검기가 stderr만 포함하고 임시 보고서는 종료 시 삭제. 실제 입력 오류 항목은 현재 보고서에서 알 수 없음. Python 버전·SEC 형식·보안 환경을 원인으로 단정하지 않음.
+- **수정:** 하위 명령 실패 시 command/종료 코드/stdout/stderr 보존, 검사 보고서의 오류 path/reason(최대 50개)을 failed_step.inspection에 복사. 원문 미리보기는 제외. stdout과 검사 오류를 사용해 빈 사유 방지. 구조 검사 전 원본 JSON의 키를 직접 탐색하던 부분을 검사 성공 후로 이동하여 잘못된 JSON/필드 누락도 같은 진단 경로로 보고. DB 스키마와 규칙 허용 조건은 변경하지 않음.
+- **검증:** Linux/Python 3.12에서 테스트 21개 통과. stderr가 빈 SEC 부모/하위 불일치, 잘못된 JSON/필드 누락/중복 키, 검사 보고서 없는 stderr 오류에 대한 회귀 테스트 포함. 실제 사내 오류의 원인은 사용자에게 path/reason 확인을 요청한 상태. Windows/Python 3.15 재실행은 아직 수행하지 않음.
+- **문서:** JSON 실행 가이드·개발 가이드에 원문 미리보기 없는 별도 검사 명령과 새 진단 필드 설명 추가. 이번 수정은 로컬 반영이며 아직 커밋·푸시하지 않음.
+
+### 2026-10-16 — 실제 입력의 적용 범위 null·선택 error 지원(v6)
+
+- **근거:** 사용자 검사 결과 28개 중 처음 10개를 확인. applicability:null의 string 타입 오류와 최상위 error 필드 거부를 확인. 전체 오류 목록과 error 자료형을 추가 요청했으며 실제 값/원문 자료를 요구하지 않음.
+- **변경:** applicability는 string/null을 허용하고 SQL TEXT NULL로 원형 보존. 최상위 error는 선택 JSON 메타데이터로 받아 부모 raw_json에 저장하고 조회 source_error/has_source_error_field에 표시. null 적용 범위는 경고, 비어 있지 않은 error/미완료 상태는 검토 필요로 표시. 원본 분석 오류가 있는 데이터가 자동 PASS가 되지 않으며 알 수 없는 다른 필드는 계속 거부.
+- **DB:** SQL 제약 변경으로 버전 6, 기존 v5 이하 DB는 보존하고 새 rules-v6.sqlite에 적재. 이력/테이블 추가 없이 최신 두 테이블 구조 유지.
+- **검증:** Linux/Python 3.12에서 24개 테스트 통과. null의 SQL/JSON 왕복, error null/문자열/객체 보존, checks 없는 실패 객체의 NO_CHECKS, checks와 error 병존 시 검토 표시, 임의 신규 키 거부, v5 보호 포함. 검사 진단 보존 수정도 같은 작업 트리에 유지. 실제 사내 전체 입력과 Windows/Python 3.15의 수정 후 성공은 아직 확인하지 않음.
+- **문서:** v6 실행 가이드/README/개발 가이드에 필드 의미와 새 DB 경로를 갱신. 현재 로컬 수정이며 커밋·푸시는 아직 수행하지 않음.
+
+
+## SPDM 트러블슈팅 기록
+
+이 절은 SPDM 개발 중 발생한 문제를 증상·원인·대응·검증 상태별로 찾기 위한 기록이다. 위 날짜별 이력과 함께 유지한다. 아래 테스트 결과는 각 작업에서 이미 실행한 결과를 재사용했으며 이번 문서 정리에서 새로 실행한 것으로 표현하지 않는다. 실제 회사 JSON·규칙 문구·개인 파일 경로는 기록하지 않는다.
+
+| 기록 | 문제 | 현재 확인 상태 |
+| --- | --- | --- |
+| TS-004 | Windows CI의 matrix 셸 표현식 거부 | 수정 후 실제 Windows CI 성공 |
+| TS-005 | PowerShell 5.1 실행 스크립트 문자열 파싱 오류 | 수정 후 실제 Windows CI 성공 |
+| TS-006 | SEC 길이·하이픈 제한으로 다른 형식 수용 불가 | v5 구현 및 Linux/Windows 테스트 성공 |
+| TS-007 | environment.json에 실제 입력 검사 실패 사유 누락 | 로컬 수정·회귀 검증 완료, 사용자 PC 재검증 대기 |
+| TS-008 | 실제 JSON의 null·선택 error와 부분 샘플 기반 계약 불일치 | v6 로컬 수정·가상 재현 검증 완료, 사내 전체 입력 재검증 대기 |
+
+### TS-004 — Windows CI 셸 표현식이 실행 전 거부됨
+
+- **발생 환경/증상:** GitHub Actions에 추가한 Windows workflow가 작업 생성 전 실패. `Unrecognized named-value: 'matrix' ... matrix.shell`이 표시됐고 jobs가 없었다. Python 테스트는 아직 실행되지 않은 상태였다.
+- **확인 방법:** PR 이벤트만 조회하는 실행 목록에는 초기 실패가 보이지 않아 전체 workflow run 목록과 실행 페이지 annotation을 확인했다. YAML 파싱만 통과한 사실을 GitHub의 표현식 검사 통과로 간주할 수 없었다.
+- **원인:** 해당 shell 속성에서 사용한 matrix 표현식이 GitHub workflow 검증에서 거부됐다.
+- **대응/최종 수정:** pwsh/powershell step을 각각 두고 shell을 상수로 지정했다. matrix 값에 따른 선택은 각 step의 if 조건에서 수행했다.
+- **재검증:** 초기 실패 run 38720451877 이후 [run 38720635486](https://github.com/doukdoll/circuit-agent/actions/runs/38720635486)에서 실제 Windows 양쪽 셸 성공. 수정 커밋 5fbcf34. 당시 테스트는 13개였으며 최신 버전의 테스트 수와 구분한다.
+- **재발 방지:** CI 설정은 YAML 구문 확인과 실제 workflow 실행을 모두 확인한다. 실행 전 설정 오류를 Python/Windows 기능 실패로 기록하지 않는다.
+- **관련 파일:** `.github/workflows/spdm-json-windows.yml`.
+
+### TS-005 — PowerShell 5.1에서 CI 스크립트 문자열 파싱 실패
+
+- **발생 환경/증상:** 명시적 JSON fixture 생성 단계를 추가한 run 38721867130에서 pwsh는 성공했지만 powershell은 Python 실행 전에 `TerminatorExpectedAtEndOfString`으로 실패했다.
+- **가설/확인:** 한글 파일명 리터럴을 추가한 ps1의 인코딩 처리를 조사했다. BOM 없는 UTF-8을 사용하는 Windows PowerShell 5.1의 해석 차이를 피하는 방식으로 수정했다. 사내 PC의 Python 데이터 파싱 실패와는 다른 단계의 증상이다.
+- **대응/최종 수정:** workflow 실행문을 ASCII로 작성하고 한글 작업 경로는 Unicode 코드 포인트로 생성했다. fixture 생성 코드는 Python 파일로 저장해서 실행하고 JSON은 UTF-8 BOM으로 썼다. Python 내부의 한글·공백·# 경로 검증은 유지했다.
+- **재검증:** 수정 74296ab 이후 [run 38722021083](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083)에서 Windows PowerShell 5.1.26100.33438과 PowerShell 7.6.6 모두 v4 테스트 15개 및 명시적 JSON 파일 검증 성공.
+- **재발 방지:** PowerShell 5.1용 파일에 한글을 직접 넣어 저장할 때 UTF-8 BOM을 명시한다. CI 스크립트 파싱과 Python 프로그램의 UTF-8 JSON 지원을 구분한다.
+- **관련 파일:** Windows workflow 및 JSON 실행 가이드의 PowerShell 안내.
+
+### TS-006 — SEC 코드 자리수·하이픈 제한
+
+- **발생 조건/증상:** 사용자가 실제 SEC에 8자리·10자리·하이픈 유무가 섞여 있다고 확인. 기존 계약은 8자리 숫자 또는 4자리-6자리 형식만 허용했다.
+- **원인:** 형식 제한이 JSON 계약, 조회용 Python 정규식, 양쪽 SQLite 테이블 CHECK에 각각 존재했다. 한 곳만 바꾸면 다른 단계에서 다시 거부될 수 있었다.
+- **최종 수정:** `$defs.sec`를 string/minLength 조건으로 교체하고 validate_sec_code는 비어 있지 않은 문자열을 검사한 뒤 원문을 반환한다. SQL SEC_CHECK는 `length(trim(sec_code)) > 0`으로 변경. 하이픈 제거·대소문자/선행 0/앞뒤 공백 변환은 하지 않는다. 빈 문자열·공백뿐인 값·null·숫자 타입 거부와 부모/하위 SEC 원문 일치 검사는 유지한다.
+- **DB 대응:** 버전을 4에서 5로 올리고 새 rules-flex.sqlite에 적재하도록 안내했다. 버전 숫자를 바꾸는 것만으로 기존 테이블의 CHECK가 변경되지는 않는다. 기존 DB는 자동 수정하지 않는다.
+- **검증:** Linux 테스트 18개와 [Windows run 38841920516](https://github.com/doukdoll/circuit-agent/actions/runs/38841920516)의 PowerShell 5.1/7 테스트 18개 및 혼합 형식 JSON 파일 검증 성공. 서로 다른 표기를 자동으로 같은 코드에 합치지 않음을 확인. 구현 15478f3, 결과 기록 5c80aa0.
+- **재발 방지:** 식별자의 형식 허용과 식별자 정규화를 별도 정책으로 관리한다. 원본→수정본을 보여주고 JSON 검사·Python 조회·SQL 제약·기존 DB 처리까지 함께 안내한다.
+- **관련 파일:** `analysis.schema.json`, `sqlite_store.py`, `test_json_rules.py`.
+
+### TS-007 — 실제 JSON 검사 오류가 environment.json에서 빈 사유로 표시됨
+
+- **사용자 환경/증상:** Windows 11 / Python 3.15.0 / SQLite 3.53.4. 사용자 보고서에서 기존 가상 테스트 18개는 통과했지만 `inspect_json_rules.py: 종료 2, 예상 0:`으로 실패했으며 뒤의 사유가 비었다. 이는 사용자 제공 결과이며 해당 PC를 직접 실행한 결과가 아니다.
+- **확인된 원인:** inspect CLI는 입력 오류 항목을 검사 JSON에 기록하고 요약을 stdout으로 출력한다. 기존 환경 점검기는 stderr만 오류 메시지에 넣었다. 검사 보고서가 있던 임시 폴더도 종료 시 삭제되어 원인이 남지 않았다.
+- **진단 절차:** inspect CLI를 별도로 `--preview 0`으로 실행하고 issues에서 severity=error인 항목의 path/reason만 확인하도록 안내했다. 이 단계에서 실제 입력의 null/선택 필드 문제(TS-008)가 드러났다. Python 재설치·버전 변경으로 해결을 시도한 사실은 없다.
+- **최종 코드 수정:** 하위 명령의 stdout/stderr/종료 코드를 failed_step에 보존하고 검사 JSON의 오류 path/reason을 최대 50개 복사한다. 원문 미리보기는 포함하지 않는다. 실제 JSON의 키를 직접 탐색하기 전에 구조 검사부터 완료하도록 순서를 수정했다.
+- **로컬 재검증:** 진단 수정 시 테스트 21개 통과. stderr는 비었지만 검사 JSON에 SEC 불일치 사유가 있는 가상 사례에서 기존의 빈 오류를 재현하고 수정 후 경로/사유가 남는지 확인했다. 잘못된 JSON·누락 필드·중복 키·보고서가 없는 stderr 오류도 검증했다. 이후 v6의 24개 테스트에 포함된다.
+- **상태/한계:** 로컬 수정·회귀 검증 완료. 사내 Windows/Python 3.15에서 수정한 점검기의 재실행 성공은 아직 확인하지 않았다. 이 로그만으로 Python 3.15 호환성 전체를 보장하거나 설치 문제가 원인이라고 결론 내리지 않는다.
+- **관련 파일:** `verify_environment.py`, 환경 진단 회귀 테스트, 실행 가이드의 별도 검사 명령.
+
+### TS-008 — 실제 데이터의 applicability:null과 선택 error를 계약이 거부함
+
+- **발생 환경/증상:** 사내 실제 JSON을 별도 검사한 결과 오류 28개·경고 0개. 사용자가 제공한 처음 10개에는 `/0/analysis/checks/0/applicability` 같은 위치의 `string 필요, null 입력`과 최상위 `/0/error` 같은 위치의 `고정 계약에 없는 필드`가 포함됐다. 위 경로는 익명화 예시다.
+- **확인된 원인:** 처음 받은 부분 샘플을 기준으로 applicability를 필수 문자열로만 정의했고 최상위 속성을 닫힌 목록으로 제한하면서 선택 error를 정의하지 않았다. 실제 입력에서 확인된 미제공 값과 분석 실패 메타데이터를 지원하지 못한 것이다. JSON 키 이름이 동일하다는 것과 값이 null일 수 있는지, 선택 메타데이터가 있는지는 별도로 확인해야 했다.
+- **집계 해석:** 검사 출력의 체크포인트/규칙/SEC 0은 실제 데이터가 비었다는 뜻이 아니다. 초기 구조 검사에서 오류가 발생하면 이후 행 펼치기와 통계를 수행하지 않는 기존 동작 때문이다.
+- **잠재 후속 제약:** SQL의 applicability TEXT NOT NULL도 null 저장을 차단한다. 이번 사용자 로그는 SQL 단계 이전 검사 실패이므로, SQL 오류가 실제 발생했다고 기록하지 않는다. 코드 확인에 따라 입력 계약과 함께 수정한 제약이다.
+- **최종 수정:** JSON의 applicability를 string/null로 허용하고 SQL 컬럼을 nullable TEXT로 바꾼다. 최상위 error를 선택 JSON 메타데이터로 허용하며 required에는 넣지 않는다. null을 빈 문자열로 바꾸지 않고 SQL NULL로 저장한다. error는 부모 raw_json에 원형 저장하고 source_error/has_source_error_field로 조회한다. 미제공 적용 범위·분석 실패는 검토 표시를 남기며 PASS를 생성하지 않는다. 다른 알 수 없는 필드와 잘못된 SEC 타입은 계속 거부한다.
+- **수동 수정 안내:** 사내 v5 코드 기준으로 analysis.schema.json의 applicability 및 checkpoint.properties.error, sqlite_store.py의 SCHEMA_VERSION 5→6 및 rules.applicability NOT NULL 제거를 원본→수정본으로 안내했다. 이는 입력 거부·SQL 저장 문제의 필수 변경이다. 상세 진단·조회 표시·추가 테스트는 v6 전체 코드에 포함돼 수동 최소 수정과 전체 배포의 범위를 구분한다.
+- **DB 대응:** 기존 v5 이하 DB는 보존하고 새 rules-v6.sqlite를 사용한다. CREATE TABLE 정의 변경과 버전 숫자 변경만으로 기존 DB의 NOT NULL이 사라지지 않는다. 환경 점검기의 임시 DB와 실제 운영 DB 생성은 별개 단계다.
+- **로컬 재검증:** Linux/Python 3.12에서 v6 테스트 24개 통과. null의 SQL/JSON 왕복, error의 null/문자열/객체 보존, checks 없는 분석 실패의 NO_CHECKS, checks와 error 병존 시 검토 표시, 예상하지 않은 필드 거부, 기존 v5 보호를 확인했다. 별도 패키지 없는 venv에 v6 ZIP 10개 파일을 추출해 가상 혼합 데이터의 점검·저장·SEC 조회·최신 교체 전 과정도 통과했다. 실제 사내 파일을 가져와 실행한 결과가 아니다.
+- **상태/다음 확인:** 로컬 구현·재현 검증 완료. 전체 28개 중 처음 10개만 확인했으므로 나머지가 같은 유형인지, error의 실제 자료형이 무엇인지, 수정 후 사내 전체 입력이 통과하는지는 미확인이다. 전체 오류의 path/reason과 error 자료형만 요청했으며 실제 규칙 문구나 원문 오류 메시지를 요구하지 않았다. 사내 재검증 결과를 받으면 이 항목의 상태와 결과를 갱신한다.
+- **재발 방지:** 정제 담당자와 필수/선택 키 및 필드별 null 허용 여부를 명시한다. 부분 샘플에서 보이지 않은 값 상태를 전체 계약으로 단정하지 않는다. 분석 성공·실패·미완료 입력을 가상 테스트에 포함한다. 오류가 난다고 모든 additionalProperties/타입 검사를 한꺼번에 해제하지 않는다. 사용자 PC에서 수정이 필요하면 정확한 원본→수정본과 새 DB 필요 여부를 먼저 안내한다.
+- **관련 파일:** JSON 계약·파서·SQLite 저장/조회·환경 점검기·가상 테스트·[실행 가이드](SPDM_JSON_RUN.md). 이번 v6 및 진단 수정은 현재 로컬 작업 트리에 있으며 아직 커밋·푸시하지 않았다.
+
+### v6 수정 및 트러블슈팅 기록 게시
+
+- 사용자가 v6 수정·진단 개선·트러블슈팅 기록의 커밋·푸시를 승인. 기존 feat/spdm-inspection 브랜치와 PR #2를 갱신하며 main 병합은 수행하지 않음.
+- Windows CI 가상 JSON에 applicability:null, checks와 error가 함께 있는 항목, analysis:null/status:error 항목을 추가. 11체크포인트/35규칙/3SEC 가상 파일로 두 PowerShell 환경에서 확인. 회사 원본은 포함하지 않음. 실행 결과는 완료 후 기록.

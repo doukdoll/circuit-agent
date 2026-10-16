@@ -7,7 +7,7 @@ import sqlite3
 
 
 APPLICATION_ID = 0x5350444D
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 SEC_CHECK = "(length(trim(sec_code)) > 0)"
 SCHEMA = [
     f"""CREATE TABLE checkpoints (
@@ -32,7 +32,7 @@ SCHEMA = [
         specification TEXT NOT NULL,
         target_kind TEXT NOT NULL,
         target_description TEXT NOT NULL,
-        applicability TEXT NOT NULL,
+        applicability TEXT,
         level TEXT NOT NULL,
         parameters_json TEXT NOT NULL,
         required_design_facts_json TEXT NOT NULL,
@@ -158,11 +158,17 @@ def lookup_rules(database, sec_code):
             "WHERE r.sec_code=? ORDER BY r.source_row", (sec_code,)).fetchall()
         checkpoints = [dict(item) for item in connection.execute(
             "SELECT id, source_record_index, checkpoint_id, row_uid, sec_code, status, summary, "
-            "issues_json FROM checkpoints WHERE sec_code=? ORDER BY source_record_index",
+            "issues_json, raw_json FROM checkpoints WHERE sec_code=? ORDER BY source_record_index",
             (sec_code,))]
         for checkpoint in checkpoints:
             checkpoint["issues"] = json.loads(checkpoint.pop("issues_json"))
+            original = json.loads(checkpoint.pop("raw_json"))
+            checkpoint["has_source_error_field"] = "error" in original
+            checkpoint["source_error"] = original.get("error")
+            checkpoint["has_preprocessing_issues"] = bool(checkpoint["issues"] or checkpoint["source_error"]
+                                                         or checkpoint["status"] != "normalized")
             checkpoint["original_checkpoint"] = None
+        checkpoint_details = {item["id"]: item for item in checkpoints}
         results = []
         for row in rows:
             item = dict(row)
@@ -177,7 +183,10 @@ def lookup_rules(database, sec_code):
             item["display_fields"] = {"checkPoint": item["summary"], "checkPoint_source": "analysis.summary",
                                       "original_checkPoint": None, "specification": item["specification"],
                                       "설계치": item["required_design_facts"], "설계치_kind": "required_design_facts"}
-            item["has_preprocessing_issues"] = bool(item["issues"] or item["checkpoint_issues"])
+            parent = checkpoint_details[item["checkpoint_db_id"]]
+            item["source_error"] = parent["source_error"]
+            item["has_source_error_field"] = parent["has_source_error_field"]
+            item["has_preprocessing_issues"] = bool(item["issues"] or parent["has_preprocessing_issues"])
             results.append(item)
         return {"sec_code": sec_code,
                 "source_format": "json", "match_status": "MATCHED" if results else "NO_CHECKS" if checkpoints else "NOT_FOUND",

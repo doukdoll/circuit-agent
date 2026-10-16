@@ -6,6 +6,7 @@ import io
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from json_rules import parse_analysis
 from query_rules import main as query_main
 from sqlite_store import (InspectionError, SCHEMA_VERSION,
                           import_analysis, lookup_rules, validate_sec_code)
+from verify_environment import verify
 
 
 def synthetic_record(sec="00112233", uid="synthetic:1", checks=2):
@@ -213,7 +215,7 @@ class JSONRulesTest(unittest.TestCase):
 
     def test_unsupported_versions_and_foreign_database_are_unchanged(self):
         self.write([synthetic_record()])
-        for version in (1, 2, 3, 4, 999):
+        for version in (1, 2, 3, 4, 5, 999):
             with self.subTest(version=version):
                 self.db.unlink(missing_ok=True)
                 result = import_analysis(self.source, self.db)
@@ -323,6 +325,101 @@ class JSONRulesTest(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(2, import_main([str(self.source), "--db", str(self.db), "--report", str(report)]))
         self.assertEqual("rejected", json.loads(report.read_text(encoding="utf-8"))["status"])
+
+    def verify_without_nested_unit_suite(self):
+        actual_run = subprocess.run
+
+        def run(argv, **kwargs):
+            if "unittest" in argv:
+                return subprocess.CompletedProcess(argv, 0, "", "Synthetic suite already run")
+            return actual_run(argv, **kwargs)
+
+        with patch("verify_environment.subprocess.run", side_effect=run):
+            return verify(self.source)
+
+    def test_environment_preserves_input_error_details_without_rule_previews(self):
+        record = synthetic_record()
+        record["analysis"]["checks"][0]["sec_code"] = "different-code"
+        self.write([record])
+        before = self.source.read_bytes()
+        result = self.verify_without_nested_unit_suite()
+        self.assertEqual("failed", result["status"])
+        failure = result["failed_step"]
+        self.assertEqual("inspect_json_rules.py", failure["command"])
+        self.assertEqual(2, failure["returncode"])
+        self.assertTrue(failure["stdout"])
+        self.assertEqual("", failure["stderr"])
+        self.assertEqual("/0/analysis/checks/0/sec_code", failure["inspection"]["issues"][0]["path"])
+        self.assertIn("SEC가 다름", result["error"])
+        self.assertNotIn("preview", failure["inspection"])
+        self.assertEqual(before, self.source.read_bytes())
+
+    def test_environment_inspects_malformed_and_missing_field_inputs_first(self):
+        for contents in ('{broken', '[{"sec_code":"test"}]', '[{"a":1,"a":2}]'):
+            with self.subTest(contents=contents):
+                self.source.write_text(contents, encoding="utf-8")
+                result = self.verify_without_nested_unit_suite()
+                self.assertEqual("failed", result["status"])
+                self.assertGreater(result["failed_step"]["inspection"]["errors"], 0)
+                self.assertTrue(result["failed_step"]["inspection"]["issues"])
+
+    def test_environment_preserves_stderr_when_no_diagnostic_report_exists(self):
+        self.write([synthetic_record()])
+
+        def run(argv, **kwargs):
+            if "unittest" in argv:
+                return subprocess.CompletedProcess(argv, 0, "", "Synthetic suite already run")
+            return subprocess.CompletedProcess(argv, 2, "", "synthetic permission denied")
+
+        with patch("verify_environment.subprocess.run", side_effect=run):
+            result = verify(self.source)
+        self.assertEqual("synthetic permission denied", result["failed_step"]["stderr"])
+        self.assertIn("synthetic permission denied", result["error"])
+
+    def test_null_applicability_remains_null_and_is_flagged_for_review(self):
+        record = synthetic_record()
+        record["analysis"]["checks"][0]["applicability"] = None
+        self.write([record])
+        parsed = parse_analysis(self.source)
+        self.assertEqual(0, parsed.report["errors"])
+        import_analysis(self.source, self.db)
+        rule = lookup_rules(self.db, record["sec_code"])["rules"][0]
+        self.assertIsNone(rule["applicability"])
+        self.assertIsNone(rule["raw"]["applicability"])
+        self.assertTrue(rule["has_preprocessing_issues"])
+        with closing(sqlite3.connect(self.db)) as connection:
+            self.assertIsNone(connection.execute("SELECT applicability FROM rules ORDER BY id LIMIT 1").fetchone()[0])
+
+    def test_optional_source_error_is_preserved_and_visible_without_checks(self):
+        for error in (None, "synthetic analysis failure", {"message": "synthetic", "retryable": True}):
+            with self.subTest(error=error):
+                record = synthetic_record(checks=0)
+                record["analysis"] = None
+                record["status"] = "error"
+                record["error"] = error
+                self.write([record])
+                import_analysis(self.source, self.db)
+                result = lookup_rules(self.db, record["sec_code"])
+                self.assertEqual("NO_CHECKS", result["match_status"])
+                checkpoint = result["checkpoints"][0]
+                self.assertTrue(checkpoint["has_source_error_field"])
+                self.assertEqual(error, checkpoint["source_error"])
+                self.assertTrue(checkpoint["has_preprocessing_issues"])
+                with closing(sqlite3.connect(self.db)) as connection:
+                    self.assertEqual(record, json.loads(connection.execute("SELECT raw_json FROM checkpoints").fetchone()[0]))
+
+    def test_source_error_with_checks_is_visible_and_unknown_fields_still_rejected(self):
+        record = synthetic_record()
+        record["error"] = "synthetic analysis failure"
+        self.write([record])
+        import_analysis(self.source, self.db)
+        result = lookup_rules(self.db, record["sec_code"])
+        self.assertEqual(record["error"], result["rules"][0]["source_error"])
+        self.assertTrue(result["rules"][0]["has_preprocessing_issues"])
+        record["unexpected_field"] = "not allowed"
+        self.write([record])
+        with self.assertRaises(InspectionError):
+            import_analysis(self.source, self.db)
 
 
 if __name__ == "__main__":

@@ -28,12 +28,34 @@ def verify(source=None, *, expect_windows=False):
         child_env["PYTHONIOENCODING"] = "utf-8"
         child_env["PYTHONDONTWRITEBYTECODE"] = "1"
 
-        def run(*args, expected=0):
+        def run(*args, expected=0, diagnostic_report=None):
             result = subprocess.run([sys.executable, "-S", *map(str, args)], cwd=app,
                                     env=child_env, capture_output=True, encoding="utf-8", errors="replace")
             if result.returncode != expected:
+                failure = {"command": Path(str(args[0])).name,
+                           "returncode": result.returncode, "expected_returncode": expected,
+                           "stdout": result.stdout[-2000:], "stderr": result.stderr[-2000:]}
+                if diagnostic_report is not None and diagnostic_report.exists():
+                    try:
+                        detail = json.loads(diagnostic_report.read_text(encoding="utf-8"))
+                        inspection = detail.get("inspection", detail)
+                        failures = [item for item in inspection.get("issues", [])
+                                    if item.get("severity") == "error"]
+                        failure["inspection"] = {
+                            key: inspection[key] for key in ("errors", "warnings", "checkpoint_count", "data_rows")
+                            if key in inspection}
+                        failure["inspection"]["issues"] = [
+                            {key: item[key] for key in ("path", "severity", "reason", "code") if key in item}
+                            for item in failures[:50]]
+                        failure["inspection"]["issues_truncated"] = len(failures) > 50
+                    except (OSError, ValueError, TypeError, AttributeError) as error:
+                        failure["diagnostic_read_error"] = str(error)
+                report["failed_step"] = failure
+                errors = failure.get("inspection", {}).get("issues", [])
+                summary = (f"{errors[0].get('path', '')}: {errors[0].get('reason', '')}" if errors else
+                           result.stderr[-2000:] or result.stdout[-2000:] or "하위 명령의 출력 없음")
                 raise ValueError(f"{Path(str(args[0])).name}: 종료 {result.returncode}, 예상 {expected}: "
-                                 f"{result.stderr[-2000:]}")
+                                 f"{summary}")
             return result
 
         suite = run("-m", "unittest", "discover", "-s", app, "-p", "test_json_rules.py", "-v")
@@ -47,16 +69,19 @@ def verify(source=None, *, expect_windows=False):
             raw = Path(source).read_bytes()
             report["input_kind"] = "provided_file"
         original_hash = hashlib.sha256(raw).hexdigest()
-        reference = json.loads(raw.decode("utf-8-sig"))
-        expected_checks = [check for record in reference if record["analysis"] is not None
-                           for check in record["analysis"]["checks"]]
         with tempfile.TemporaryDirectory(prefix="SPDM 한글 # 환경 ") as temporary:
             root = Path(temporary)
             input_path, db = root / "입력 규칙.json", root / "규칙 DB.sqlite"
             inspection_path, import_path = root / "점검.json", root / "저장.json"
             input_path.write_bytes(raw)
-            run(app / "inspect_json_rules.py", input_path, "--report", inspection_path, "--preview", 1)
-            run(app / "import_rules.py", input_path, "--db", db, "--report", import_path, "--preview", 1)
+            run(app / "inspect_json_rules.py", input_path, "--report", inspection_path, "--preview", 0,
+                diagnostic_report=inspection_path)
+            report["checks"]["input_inspection"] = True
+            reference = json.loads(raw.decode("utf-8-sig"))
+            expected_checks = [check for record in reference if record["analysis"] is not None
+                               for check in record["analysis"]["checks"]]
+            run(app / "import_rules.py", input_path, "--db", db, "--report", import_path, "--preview", 0,
+                diagnostic_report=import_path)
             imported = json.loads(import_path.read_text(encoding="utf-8"))
             if imported["stored_rows"] != len(expected_checks):
                 raise ValueError("세부 규칙 전체 저장 건수가 다름")

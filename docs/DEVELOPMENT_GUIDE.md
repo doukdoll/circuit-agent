@@ -1,6 +1,6 @@
 # Java QCV 검사 데모 개발 가이드
 
-Rule 입력·저장·조회는 최신 JSON 전용(v5, checkpoints/rules 두 테이블, SEC 자리수·하이픈 제한 없음)입니다. 새 전체 JSON으로 교체하고 SEC만으로 조회하며 가져오기 이력을 누적하지 않습니다. [JSON 실행 가이드](SPDM_JSON_RUN.md)와 [Windows 실행 안내](SPDM_WINDOWS_FIRST_RUN.md)를 따릅니다. Python 표준 라이브러리만 사용하며 `verify_environment.py`로 실제 실행 PC의 점검·적재·조회·재실행을 확인할 수 있습니다. 아래 Java QCV 검사 데모와의 자동 연동은 별도 단계입니다.
+Rule 입력·저장·조회는 최신 JSON 전용(v6, checkpoints/rules 두 테이블, SEC 자리수·하이픈 제한 없음, 적용 범위 null·선택 error 보존)입니다. 새 전체 JSON으로 교체하고 SEC만으로 조회하며 가져오기 이력을 누적하지 않습니다. [JSON 실행 가이드](SPDM_JSON_RUN.md)와 [Windows 실행 안내](SPDM_WINDOWS_FIRST_RUN.md)를 따릅니다. Python 표준 라이브러리만 사용하며 `verify_environment.py`로 실제 실행 PC의 점검·적재·조회·재실행을 확인할 수 있습니다. 실제 입력 검사 실패 시 environment.json의 failed_step.inspection.issues 또는 JSON 실행 가이드의 별도 검사 명령으로 path/reason을 확인합니다. 발생한 문제와 수정 근거는 [SPDM 트러블슈팅 기록](DEVELOPMENT_HISTORY.md#spdm-트러블슈팅-기록)에 정리합니다. 아래 Java QCV 검사 데모와의 자동 연동은 별도 단계입니다.
 
 공개 샘플을 읽어 부품·핀·넷을 구성하고, TPS56C230의 명목 FB 분압 Rule 하나를 계산한 뒤 JSON·HTML 보고서를 만듭니다. [최신 MVP 방향](MVP_REQUIREMENTS.md)을 위한 실행 가능한 출발점입니다. [샘플 안내](../samples/README.md)에 원본·직접 작성한 회로·기대 결과·개발용 허용 기준을 구분했습니다.
 

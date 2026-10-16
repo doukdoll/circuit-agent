@@ -31,7 +31,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["applicability", "evidence", "level", "parameters", "required_design_facts", "requirement", "requirement_id", "sec_code", "target_description", "target_kind"],
       "properties": {
-        "applicability": {"type": "string"},
+        "applicability": {"type": ["string", "null"]},
         "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
         "level": {"type": "string"},
         "parameters": {"type": "array", "items": {"$ref": "#/$defs/parameter"}},
@@ -59,6 +59,7 @@
         "checkpoint_id": {"type": "string", "minLength": 1},
         "row_uid": {"type": "string", "minLength": 1},
         "sec_code": {"$ref": "#/$defs/sec"},
+        "error": {},
         "status": {"type": "string", "minLength": 1}
       }
     }

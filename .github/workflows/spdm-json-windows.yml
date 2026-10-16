@@ -45,6 +45,11 @@ jobs:
           codes = ("00112233", "1234-567890", "9988776655")
           records = [synthetic_record(codes[i % 3], f"synthetic:{i}", 4 if i < 5 else 3) for i in range(10)]
           records[0]["analysis"]["issues"] = [{"code": "synthetic_issue", "description": "Synthetic ambiguity"} for _ in range(11)]
+          records[0]["analysis"]["checks"][0]["applicability"] = None
+          records[1]["error"] = "synthetic upstream diagnostic"
+          failed = synthetic_record(codes[0], "synthetic:failed", 0)
+          failed.update(analysis=None, status="error", error={"message": "synthetic analysis failure"})
+          records.append(failed)
           Path("input-rules.json").write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8-sig")
           '@
           $SpdmFixturePath = Join-Path $SpdmTestPath "create_fixture.py"
@@ -77,6 +82,11 @@ jobs:
           codes = ("00112233", "1234-567890", "9988776655")
           records = [synthetic_record(codes[i % 3], f"synthetic:{i}", 4 if i < 5 else 3) for i in range(10)]
           records[0]["analysis"]["issues"] = [{"code": "synthetic_issue", "description": "Synthetic ambiguity"} for _ in range(11)]
+          records[0]["analysis"]["checks"][0]["applicability"] = None
+          records[1]["error"] = "synthetic upstream diagnostic"
+          failed = synthetic_record(codes[0], "synthetic:failed", 0)
+          failed.update(analysis=None, status="error", error={"message": "synthetic analysis failure"})
+          records.append(failed)
           Path("input-rules.json").write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8-sig")
           '@
           $SpdmFixturePath = Join-Path $SpdmTestPath "create_fixture.py"
