@@ -1,0 +1,100 @@
+name: SPDM JSON on Windows
+
+"on":
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/spdm_import/**"
+      - ".github/workflows/spdm-json-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  json-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [pwsh, powershell]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify using pwsh
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Output ("PowerShell " + $PSVersionTable.PSVersion.ToString())
+          $SpdmPython = (python -c "import sys; print(sys.executable)").Trim()
+          $SpdmTestPath = Join-Path $env:RUNNER_TEMP ("SPDM " + [char]0xD55C + [char]0xAE00 + " # verify")
+          New-Item -ItemType Directory -Path $SpdmTestPath -Force | Out-Null
+          Get-ChildItem tools/spdm_import -Filter *.py | Copy-Item -Destination $SpdmTestPath
+          Copy-Item tools/spdm_import/analysis.schema.json -Destination $SpdmTestPath
+          Set-Location $SpdmTestPath
+          $SpdmFixture = @'
+          import json
+          from pathlib import Path
+          from test_json_rules import synthetic_record
+          codes = ("00112233", "1234-567890", "9988776655")
+          records = [synthetic_record(codes[i % 3], f"synthetic:{i}", 4 if i < 5 else 3) for i in range(10)]
+          records[0]["analysis"]["issues"] = [{"code": "synthetic_issue", "description": "Synthetic ambiguity"} for _ in range(11)]
+          records[0]["analysis"]["checks"][0]["applicability"] = None
+          records[1]["error"] = "synthetic upstream diagnostic"
+          failed = synthetic_record(codes[0], "synthetic:failed", 0)
+          failed.update(analysis=None, status="error", error={"message": "synthetic analysis failure"})
+          records.append(failed)
+          Path("input-rules.json").write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8-sig")
+          '@
+          $SpdmFixturePath = Join-Path $SpdmTestPath "create_fixture.py"
+          [System.IO.File]::WriteAllText($SpdmFixturePath, $SpdmFixture, [System.Text.UTF8Encoding]::new($true))
+          & $SpdmPython -S $SpdmFixturePath
+          if ($LASTEXITCODE -ne 0) { throw "JSON fixture creation failed" }
+          & $SpdmPython -S .\verify_environment.py --expect-windows --input ".\input-rules.json" --report .\windows-report.json
+          if ($LASTEXITCODE -ne 0) { throw "Windows acceptance verification failed" }
+          $SpdmReport = Get-Content .\windows-report.json -Raw -Encoding UTF8 | ConvertFrom-Json
+          if (-not $SpdmReport.windows_verified) { throw "Not an actual Windows verification" }
+          $SpdmReport | ConvertTo-Json -Depth 10
+      - name: Verify using powershell
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Output ("PowerShell " + $PSVersionTable.PSVersion.ToString())
+          $SpdmPython = (python -c "import sys; print(sys.executable)").Trim()
+          $SpdmTestPath = Join-Path $env:RUNNER_TEMP ("SPDM " + [char]0xD55C + [char]0xAE00 + " # verify")
+          New-Item -ItemType Directory -Path $SpdmTestPath -Force | Out-Null
+          Get-ChildItem tools/spdm_import -Filter *.py | Copy-Item -Destination $SpdmTestPath
+          Copy-Item tools/spdm_import/analysis.schema.json -Destination $SpdmTestPath
+          Set-Location $SpdmTestPath
+          $SpdmFixture = @'
+          import json
+          from pathlib import Path
+          from test_json_rules import synthetic_record
+          codes = ("00112233", "1234-567890", "9988776655")
+          records = [synthetic_record(codes[i % 3], f"synthetic:{i}", 4 if i < 5 else 3) for i in range(10)]
+          records[0]["analysis"]["issues"] = [{"code": "synthetic_issue", "description": "Synthetic ambiguity"} for _ in range(11)]
+          records[0]["analysis"]["checks"][0]["applicability"] = None
+          records[1]["error"] = "synthetic upstream diagnostic"
+          failed = synthetic_record(codes[0], "synthetic:failed", 0)
+          failed.update(analysis=None, status="error", error={"message": "synthetic analysis failure"})
+          records.append(failed)
+          Path("input-rules.json").write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8-sig")
+          '@
+          $SpdmFixturePath = Join-Path $SpdmTestPath "create_fixture.py"
+          [System.IO.File]::WriteAllText($SpdmFixturePath, $SpdmFixture, [System.Text.UTF8Encoding]::new($true))
+          & $SpdmPython -S $SpdmFixturePath
+          if ($LASTEXITCODE -ne 0) { throw "JSON fixture creation failed" }
+          & $SpdmPython -S .\verify_environment.py --expect-windows --input ".\input-rules.json" --report .\windows-report.json
+          if ($LASTEXITCODE -ne 0) { throw "Windows acceptance verification failed" }
+          $SpdmReport = Get-Content .\windows-report.json -Raw -Encoding UTF8 | ConvertFrom-Json
+          if (-not $SpdmReport.windows_verified) { throw "Not an actual Windows verification" }
+          $SpdmReport | ConvertTo-Json -Depth 10

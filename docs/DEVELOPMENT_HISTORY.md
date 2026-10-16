@@ -172,3 +172,240 @@ CRLF 사본 SHA-256:
 - **변경:** [웹 구조 및 MySQL 설계 방향](WEB_ARCHITECTURE.md)을 작성하고 문서 목차에 연결.
 - **검증 범위:** 문서의 경로·링크·diff 확인. 이 작업에서 Java 테스트나 DB 연결 검증을 수행한 것으로 기록하지 않음.
 - **미구현:** 디렉토리 실제 이동, Spring Boot·FE·MySQL 연결, Docker Compose 설정. 상세 버전·API·스키마는 구현 단계에서 확인.
+
+### 2026-10-14 — SPDM 컬럼 선택·최소 정제 점검 도구
+
+- **상태:** 첫 점검 단계 구현 및 가상 입력 검증 완료. 저장 후보·중복 키는 제안이며 실제 정제 결과 컬럼은 미확정.
+- **문제와 목표:** 새 담당 영역은 이미 병합/정제된 SPDM xlsx에서 사용할 컬럼·값을 선택하고 로컬 SQLite에 저장하는 작업. 기존 Java QCV 검사 모델은 목적과 필드가 달라 별도 Python 모듈로 시작.
+- **구현 범위:** `tools/spdm_import/inspect_rules.py`, `mapping.json`, `requirements.txt`, `test_inspect_rules.py`; 전체 컬럼 통계·설정 기반 선택·최소 정제·변환 오류·중복 후보·원문/정제값 미리보기. 입력 수정·재병합·문장 의미 정제·행 자동 삭제·서버·외부 API 호출은 없음.
+- **설계 선택:** 중복 헤더는 열/헤더 동시 확인, 정제 결과 고유 헤더 선택도 지원. 숫자 SEC의 앞자리 0을 추측하지 않음. `|`, 핀 표현, 단위와 조건은 유지. 선택한 정제값이 비어 있으면 원문으로 자동 대체하지 않음. 날짜는 통합문서 epoch를 사용. 수식과 오류 셀은 변환 오류로 표시.
+- **변경 문서:** [SPDM 시작 가이드](SPDM_IMPORT.md), 개발 가이드·문서 목차. Python 생성 캐시를 `.gitignore`에 추가.
+- **검증:** 관리 Linux, Python 3.12.14 / openpyxl 3.1.5. `python -m unittest discover -s tools/spdm_import -p 'test_*.py' -v`로 가상 xlsx 11개 테스트 통과. 원본 바이트 보존·중복 헤더·코드·단위·빈값·중복 행·정제 컬럼 선택·1900/1904 날짜·오류 셀·CLI 출력/종료 코드·입력 덮어쓰기 방지를 확인. 기존 Java 테스트는 이번 작업에서 재실행하지 않음.
+- **사용자 환경 확인:** 사용자가 사내 자료/프로그램 반출 불가·외부 코드 반입 가능을 확인. 실제 입력·보고서를 외부로 가져오지 않는 개발/로컬 검증 절차와 `tools/spdm_import/README.md`를 추가. 실제 회사 입력과 Windows/DRM 접근은 검증하지 않음.
+- **다음 작업과 한계:** 실제 파일 점검으로 컬럼 선택·빈값 처리·행 제외·중복 관계 확정 후 SQLite 저장·재실행 정책 구현. 현재 SQLite 저장·DRM 해제·Gemini·Java 엔진 연동은 미구현. 기존 웹/MySQL 설계와 이번 로컬 SQLite 요구는 별도 범위.
+- **Git 승인:** 사용자가 이번 작업의 커밋·푸시 진행을 승인. 작업 브랜치 게시 및 PR로 검토하며 main 병합은 이번 승인 범위에 포함하지 않음. 실제 커밋·브랜치·PR 결과는 완료 보고에서 확인.
+- **반입 준비 검증:** 코드·매핑·의존성 명세·가상 테스트·독립 안내 5개 파일만 담은 ZIP을 로컬 `output/spdm/`에 생성. 별도 임시 폴더로 풀어 `python -m unittest discover -s . -p 'test_*.py' -v`를 실행했고 11개가 통과. 사내 입력이나 보고서, Python/패키지 바이너리는 포함하지 않음.
+
+### 2026-10-14 — SPDM SQLite 적재·SEC별 규칙 조회
+
+- **상태:** 로컬 구현 및 가상 입력 검증 완료. 실제 입력/정제 컬럼 계약·BOM 코드 변환은 미확정.
+- **문제와 목표:** 사용자가 QCV·BOM에서 찾은 부품으로 검증할 수 있도록 규칙 DB를 고려한 뒤 SQLite 저장 구현을 요청. 점검 미리보기 일부가 아닌 전체 선택 행을 저장하고, SEC별 규칙 목록을 버전별로 조회할 수 있게 함.
+- **구현:** `sqlite_store.py`, `import_rules.py`, `query_rules.py`, `test_sqlite_store.py`. `inspect_rules.py`에 전체 행 전달 콜백과 입력 바이트 지정 지원을 추가하여 점검/적재가 같은 파싱·정제 기준을 사용. 매핑의 13개 기본 컬럼과 선택된 원문/정제값·추가 컬럼 JSON·행 번호·경고·중복 위치를 저장.
+- **설계:** `import_batches`의 입력/매핑 해시·파서/적재 버전으로 동일 실행 스킵. 변경된 입력/설정은 새로운 가져오기로 보관. 조회에는 명시적 가져오기 ID를 요구해 규칙 버전 혼합 방지. `(batch_id, sec_code)` 인덱스와 `(batch_id, source_row)` 유일성 제약을 사용하며 업무 중복 후보는 보존. 보드별 참조번호·관측 회로값·판정은 규칙 테이블과 분리.
+- **오류 처리:** 입력/설정/DB/보고서 경로 충돌 방지. 트랜잭션 안에서 스키마 생성과 행/이력 삽입을 수행하고 변환/SQL 오류 시 전부 롤백. 기존 데이터 유지, 타 용도 DB·미지원 버전 거부. 입력의 동일 바이트를 해시/파싱. 조회는 읽기 전용, 미매칭은 NOT_FOUND/종료 코드 3이며 PASS로 간주하지 않음. 보고서 쓰기가 커밋 후 실패하면 DB 완료 여부를 별도 안내.
+- **검증:** 관리 Linux, Python 3.12.14 / openpyxl 3.1.5. `python -m unittest discover -s tools/spdm_import -p 'test_*.py' -v`로 기존 11개 포함 전체 25개 테스트 통과. 25행 입력·미리보기 1행에서도 전체 적재, 코드 선행 0/타입/문장/원문·빈 규칙·중복/경고 보존, 파일/설정 변경별 조회 분리, 파일명 변경/preview=0 재실행, 변환 오류 및 실제 SQLite 트리거 실패의 전체 롤백, 읽기 전용 조회/미매칭·경로 충돌·타 DB/버전 거부를 확인. Java 테스트는 이번 작업에서 재실행하지 않음.
+- **문서:** [SPDM 가이드](SPDM_IMPORT.md), [독립 반입 안내](../tools/spdm_import/README.md), 개발 가이드와 목차 갱신.
+- **사용자 환경·한계:** 실제 사내 파일 없이 구현. Windows/DRM 검증 미수행. 현재 명세의 8자리 원본 SEC를 조회하며 다른 형식과의 임의 변환은 하지 않음. QCV/BOM 파싱 연동·검증기 호출·업무 유일 키·사내 컬럼 선별은 후속 작업.
+- **Git 승인·게시 대상:** 사용자가 이번 SQLite 변경의 커밋·푸시와 [PR #2](https://github.com/doukdoll/circuit-agent/pull/2) 반영을 승인. 기존 `feat/spdm-inspection` 브랜치에서 이번 변경만 추가 커밋하여 일반 푸시하고 PR 제목·설명을 최종 구현 범위로 갱신. main 병합은 이번 승인 범위에 포함하지 않음. 실제 추가 커밋과 게시 결과는 완료 보고에서 확인.
+- **게시 전 확인:** 직전 구현 작업의 25개 테스트 및 분리 ZIP/CLI 검증 결과를 재사용하며 이번 게시 작업에서 테스트를 새로 실행했다고 표현하지 않음. ZIP과 현재 실행 파일의 바이트 일치, 문서 링크, diff 공백, 게시 파일 목록을 확인.
+- **반입 검증:** `output/spdm/spdm-import-sqlite.zip`에 실행 코드·설정·의존성 명세·테스트·독립 안내 9개 파일만 포함. 압축 무결성 및 로컬 소스와 바이트 일치를 확인하고 별도 임시 폴더에서 25개 테스트 통과. 추출 폴더에서 가상 xlsx 생성 → 실제 `import_rules.py` 프로세스로 1행 적재 → `query_rules.py`로 MATCHED/1규칙 조회까지 성공. 실제 회사 입력·DB·보고서·패키지 바이너리는 ZIP에 포함하지 않음.
+
+### 2026-10-14 — 빈 Windows PC의 SPDM 첫 실행 안내
+
+- **상태:** 문서 작성 및 예제 대조 완료. 예정 실행일은 사용자 기준 다음 날인 2026-10-15.
+- **목표:** Python 등 개발 환경이 없는 사내 Windows PC에서 반입한 코드를 설치·점검·적재·조회할 수 있게 단계별 명령을 제공.
+- **사용자 확인:** 인터넷은 사용 가능하나 프로그램의 외부 API 호출은 사용하지 않는 조건. 설치 다운로드와 로컬 실행을 구분하고, 패키지 저장소 접근이 제한될 때만 오프라인 wheel 설치를 대안으로 안내.
+- **변경:** [처음 실행하기](SPDM_WINDOWS_FIRST_RUN.md) 추가, 문서 목차 및 개발 가이드 연결. Python 정식 설치·venv·패키지 버전·25개 가상 테스트·매핑 변경·점검·적재·실제 행 수·SEC 조회·재실행·DRM 문제 해결·창 재시작 절차 포함. 코드나 기존 반입 ZIP은 변경하지 않음.
+- **검증:** 문서의 CLI 인수를 현재 구현과 대조, 장 순서·코드 블록·공백·문서 링크 확인. 행 수 확인용 Python 예제를 가상 SQLite에 실행해 정상 일치와 불일치 종료를 확인. 기존 앱의 25개 테스트 및 ZIP/CLI 결과는 직전 구현 결과를 재사용하고 새로 실행했다고 표현하지 않음.
+- **한계:** Windows/PowerShell 명령·설치 프로그램·사내 DRM·실제 입력 접근은 이 작업에서 실행하지 않음. Python 공식 다운로드 주소는 안내용이며 이 작업에서 외부 다운로드를 수행하지 않음.
+- **Git 승인·게시 대상:** 사용자가 이번 문서의 커밋·푸시를 승인. 기존 `feat/spdm-inspection`에 문서 변경만 추가 커밋하여 일반 푸시하고 [PR #2](https://github.com/doukdoll/circuit-agent/pull/2)의 안내를 갱신. main 병합은 별도 승인 범위이며 실제 추가 커밋·게시 결과는 완료 보고에서 확인.
+- **게시 전 확인:** 직전 문서 작업의 예제 검증 결과를 재사용. 이번 게시에서는 문서 링크·장 순서·코드 블록·공백·파일 목록을 확인하며 앱 테스트나 Windows 실행을 새로 수행했다고 표현하지 않음.
+
+### 2026-10-15 — 고정 analysis JSON 입력·구조화 규칙 저장
+
+- **상태:** 구현·가상 테스트·사용자 제공 부분 입력의 로컬 적재/조회 검증 완료. 실제 입력은 저장소 및 배포 ZIP에 포함하지 않음.
+- **요구:** 사용자가 고정 필드의 전처리 JSON 일부를 제공하고 Rule 파싱·DB 저장·조회와 실행 Markdown 작성을 요청. 데이터 내용은 변경될 수 있지만 컬럼/키 구조는 고정.
+- **실제 구조 확인:** 최상위 체크포인트 배열 안의 `analysis.checks`가 세부 규칙 단위. 실제 키는 단수 `requirement`, 원문 checkPoint는 별도 필드로 존재하지 않음. SEC는 8자리와 4자리-6자리 두 형식. target_kind는 검사 대상 유형으로 원형 유지.
+- **구현:** `analysis.schema.json`, `json_rules.py`, `inspect_json_rules.py`, `test_json_rules.py` 추가. import CLI는 JSON/Excel 자동 감지 및 `--format` 지원, JSON은 고정 계약을 사용. JSON 경로의 외부 패키지 의존성을 제거하고 표준 라이브러리만 사용.
+- **저장 구조:** 스키마 v2의 `import_batches → checkpoints → rules`. 부모 원본 객체·상태·summary·issues와 각 check의 target·requirement·parameters·required_design_facts·evidence·소스 ID/JSON 위치를 보존. summary는 표시용 checkpoint, requirement는 specification으로 연결. 필요한 설계치 항목은 배열로 표시하고 실제 관측값으로 채우지 않음; original_checkpoint와 JSON design_value는 null.
+- **무결성·호환:** 구조/타입·중복 JSON 키·비유한 숫자·상하위 SEC 불일치 검사. 원본 이슈·중복 규칙·수식 문자열·파라미터 타입 보존. 동일 입력/계약/버전은 스킵, 내용 변경은 새 가져오기. v1 읽기 전용 조회와 트랜잭션 v2 이관, ID 보존 및 중간 SQL 실패 시 원상복구 지원. 별도 객체가 있는 v1은 자동 이관 거부. 빈/미완료 분석도 체크포인트 이력으로 보관하고 NO_CHECKS로 조회.
+- **가상 검증:** 관리 Linux/Python 3.12.14/openpyxl 3.1.5에서 전체 `python -m unittest discover -s tools/spdm_import -p 'test_*.py' -v` 37개 통과. JSON 전용 12개는 표준 라이브러리만 사용. 필드/타입·혼합 SEC·파라미터/원문 보존·빈 분석·중복·SQL 롤백·v1 이관/조회·이관 중 SQL 실패 복구·CLI 확인. Java 테스트는 재실행하지 않음.
+- **실제 입력 검증:** 첨부 JSON을 `python -S`로 점검/적재/조회. 10체크포인트/35규칙/3SEC, 구조 오류 0개, 분석 이슈 11개 보존. 각 SEC의 전체 규칙 및 파라미터·근거·요구 설계 정보의 원본 일치, 부모/자식 원문 객체 일치, FK 무결성, 입력 해시 불변, 재실행 skipped 확인. 소스의 실제 규칙 내용·부품 코드는 문서/테스트에 복사하지 않음.
+- **문서·배포:** [JSON 실행 가이드](SPDM_JSON_RUN.md), 목차·개발 가이드·기존 Excel 안내 갱신. JSON 전용 ZIP에는 코드·고정 계약·가상 테스트·MD·스키마 SQL만 포함. 실제 입력/DB/보고서는 로컬 output 또는 첨부 경로에 유지. `.gitignore`에 실제 입력 기본 파일명 `analysis.json` 추가.
+- **한계:** Windows·DRM·QCV/BOM 사실 추출·Gemini 판정은 미검증/미연동. 원문 checkPoint의 완전한 복원이나 분석 이슈의 해결을 수행하지 않음. 이번 파일은 일부 데이터이며 다른 버전의 규칙을 자동 병합하지 않음.
+- **Git:** 기존 `feat/spdm-inspection` 작업 트리에서 수정. 이번 변경의 커밋·푸시·PR 업데이트는 아직 수행하지 않음. 이전 작업의 게시 승인과 구분.
+- **배포 최종 확인:** `output/spdm/spdm-analysis-json.zip`의 허용 목록 9개 파일을 로컬 코드/문서와 바이트 비교. 별도 임시 폴더에 풀어 `python -S`로 JSON 전용 12개 테스트 및 가상 입력의 점검→저장→SEC 조회 CLI 성공. 초기화용 스키마 SQL도 가상 DB에서 실행 확인. 실제 첨부/DB/보고서는 ZIP에 포함하지 않음.
+
+### 2026-10-15 — JSON 전용 입력 확정·이전 입력 코드 제거·환경 검증
+
+- **상태:** JSON 전용 구현과 로컬 배포 검증 완료. 실제 Windows CI의 PowerShell 5.1/7 검증 완료. 회사 PC 자체의 파일 접근 조건은 미검증이며 Linux 실제 입력 결과와 구분.
+- **문제와 목표:** 사용자가 앞으로 입력은 JSON으로 고정된다고 확정하고 이전 Excel 부분 제거와 실제 입력·Windows/PowerShell 환경 검증을 요청.
+- **변경:** 기존 입력 파서·매핑 설정·패키지 요구 파일·해당 테스트를 삭제. import CLI의 형식 감지/선택·컬럼 매핑 옵션, sqlite_store의 기존 입력 저장/조회·이관 분기를 제거. JSON 전용 고정 계약과 표준 라이브러리만 사용.
+- **저장:** 스키마 v3의 import_batches/checkpoints/rules만 유지. 기존 입력 전용 컬럼 제거, 계약 해시 명칭 통일, 다른 가져오기의 체크포인트 연결을 복합 외래키로 차단. v1/v2 및 다른 용도의 DB는 변형 없이 거부하고 새 JSON DB에 적재하도록 안내.
+- **검증 도구:** verify_environment.py 추가. Python -S 하위 CLI로 점검→전체 적재→모든 SEC 조회→원문/구조화 타입·FK 비교→재실행→값 변경→잘못된 입력 거부를 임시 한글/공백/# 경로에서 실행. 실제 OS·Python·SQLite·항목별 결과 기록, --expect-windows는 Linux에서 종료 2로 실패하며 windows_verified=false 유지. 실제 입력은 읽기만 수행.
+- **가상 검증:** 관리 Linux/Python 3.12.14에서 JSON 테스트 13개 통과. 한글/공백 경로·BOM·원문·타입·미완료 분석·중복 보존·읽기 전용 조회·지원하지 않는 DB 불변·부분 SQL 실패 롤백·외부 연결 차단·CLI 검증 포함. 이전 단계의 37개는 기존 입력 호환을 포함했던 과거 결과이며 이번 테스트 수와 구분.
+- **실제 입력:** 첨부본 전체 10체크포인트/35규칙/3SEC, 구조 오류 0개, 분석 이슈 11개 보존. 로컬 v3 DB 저장·전체 SEC 원문 조회 일치·동일 입력 skipped·원본 해시 불변 확인. 환경 점검에서도 내용 변경 시 새 이력과 잘못된 입력 시 기존 이력 보존 확인.
+- **독립 배포 검증:** spdm-json-only.zip의 허용 목록 10개 파일만 추출하고 pip/openpyxl이 없는 새 venv에서 Python -S로 13개 테스트와 실제 첨부본 환경 검증 통과. 스키마 SQL 실행 및 버전 3 확인. ZIP은 코드·고정 계약·가상 테스트·실행 MD·SQL만 포함하며 실제 첨부/DB/보고서는 포함하지 않음.
+- **Windows 구성:** GitHub Actions windows-latest에서 PowerShell 7(pwsh)와 Windows PowerShell 5.1(powershell)을 각각 사용해 가상 데이터로 실행하는 workflow 준비. 이후 실제 실행/성공 결과는 아래 후속 근거에 기록. 회사 PC의 접근 권한·DRM 조건은 그 PC에서 제공된 환경 검증 명령으로 별도 확인 필요.
+- **문서:** JSON 실행 가이드·기존 진입 문서·목차·개발 가이드 갱신. 추가 설치 패키지·가상환경 활성화·외부 API 없이 실행하며 새 DB 경로 사용.
+- **범위/게시:** QCV/BOM 파싱·Gemini 판정은 변경/검증하지 않음. 기존 작업 브랜치 feat/spdm-inspection 사용. 사용자가 이번 코드·문서·가상 Windows workflow의 커밋·푸시·PR 갱신 및 Windows 테스트 실행을 승인. 실제 데이터 산출물은 로컬에 유지.
+
+- **Windows CI 초기 오류:** 첫 workflow는 shell 속성의 matrix 표현식이 GitHub 문맥 검사에서 거부되어 작업 시작 전 실패(run 38720451877). YAML 파싱 성공만으로 GitHub 표현식 유효성을 입증할 수 없었음. 각 step의 shell을 pwsh/powershell 상수로 지정하고 if 조건으로 선택하도록 수정해 재실행. Python 기능 오류나 Windows 런타임 테스트 실패와 구분.
+
+- **Windows 최종 근거:** [run 38720635486](https://github.com/doukdoll/circuit-agent/actions/runs/38720635486), 구현 ff08c37 및 workflow 수정 5fbcf34 기준 PR 병합 미리보기(e2c7765)에서 성공. Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1, Windows PowerShell 5.1.26100.33438(job 116374033312) 및 PowerShell 7.6.6(job 116374033610) 각각 가상 테스트 13개와 환경 검증 전체 통과. 한글·공백·# 경로, Python -S 실행, system=Windows/windows_verified=true 확인. 가상 2체크포인트/4규칙/2SEC의 전체 적재·조회·타입 보존·새 이력·오류 거부·반복 스킵 검증. 회사 첨부본을 Windows CI에 전송하지 않음. 이후 문서만 갱신하며 이 실행 결과를 재사용, 추가 런타임 실행으로 표현하지 않음.
+
+### 2026-10-15 — 가져오기 이력 제거·최신 규칙만 유지
+
+- **상태:** 로컬 구현·테스트·실제 부분 JSON 적재/조회·독립 ZIP 검증 완료. 이번 변경의 커밋·푸시 및 Windows CI 재실행은 수행하지 않음.
+- **요구와 결정:** 사용자가 최신 규칙만 관리한다고 확정. 내용 변경 시 전체 규칙을 새 batch로 중복 저장하던 구조를 제거. 최신 전체 JSON을 하나의 현재 데이터 집합으로 취급하고 이전 판본을 보관하지 않음.
+- **구조/API:** 스키마 v4는 checkpoints/rules 두 테이블만 사용. import_batches와 batch_id, 가져오기 메타데이터·동일 파일 스킵 분기를 삭제. rules(sec_code) 인덱스로 조회, lookup_rules(database, sec_code)와 CLI의 --sec-code만 사용. 부모/자식 원문·상태·이슈·파라미터·근거 및 소스 식별자는 그대로 보존.
+- **교체 동작:** 구조 검증 후 BEGIN IMMEDIATE에서 자식/부모 삭제와 새 데이터 삽입을 한 번에 커밋. 첫 적재 imported, 기존 데이터가 있으면 동일 파일도 replaced. SQL 오류는 삭제 및 부분 삽입을 롤백하여 기존 데이터 복구. 신규 JSON에서 빠진 SEC·체크포인트·규칙은 남기지 않으며 부분 입력 누적은 지원하지 않음. 내부 정수 ID는 재사용될 수 있어 외부 영속 식별자로 사용하지 않음.
+- **기존 DB:** v1/v2/v3는 자동 변환·덮어쓰기하지 않고 새 rules-latest.sqlite 경로에 입력을 적재하도록 안내. 기존 파일을 변경하지 않음. 이후 동일 v4 DB를 최신 JSON으로 갱신.
+- **가상 검증:** 관리 Linux/Python 3.12.14에서 Python -S 테스트 15개 통과. 35→36개 추가 후 전체 36행, 규격 변경, 이전 SEC 삭제, 25회 반복 저장 후 행·SQLite 페이지 수 비누적, 삭제 후 부분 삽입 실패 시 기존 조회 결과 복구 확인. 구조/타입·원문·빈 분석·중복·FK·읽기 전용 조회·기존 버전 거부·네트워크 차단·CLI 검증 포함.
+- **실제 입력/배포:** 첨부본 10체크포인트/35규칙/3SEC, 구조 오류 0개·분석 이슈 11개 보존. 새 v4 DB 저장과 전체 SEC 원문 조회, 5회 추가 적재 후 10/35행 및 페이지 수 불변, 원본 바이트 불변 확인. spdm-json-latest.zip의 허용 목록 10개 파일을 한글·공백·# 임시 경로에 추출하고 pip/외부 패키지 없는 새 venv에서 Python -S 환경 검증(테스트 15개 및 실제 JSON CLI 전 과정) 통과. schema_v4.sql 초기화도 실행 확인.
+- **Windows 범위:** 이전 v3의 Windows PowerShell 5.1/7 성공은 과거 근거이며 이번 v4 검증으로 표현하지 않음. 현재 PC의 실제 OS를 기록하는 환경 검증기는 v4 교체 동작을 확인하도록 갱신했으며 Windows 재실행은 아직 없음. 회사 PC의 실제 입력·DRM·QCV/BOM·Gemini 판정도 별도 범위.
+- **문서/산출물:** JSON 실행 가이드·모듈 README·개발 가이드·목차를 최신 교체/SEC 조회 명령으로 갱신. 새 ZIP과 SQL은 기존 배포와 구분. 실제 입력·DB·보고서는 output/첨부 경로에만 두며 ZIP/저장소에 포함하지 않음. SQLite 파일의 빈 페이지는 재사용되므로 규칙 삭제 시 물리 파일이 즉시 축소된다고 보장하지 않음.
+- **Git:** feat/spdm-inspection 작업 트리에서 수정. 현재 작업에 대한 새 게시 승인이 없으므로 로컬 반영만 완료했으며 main 또는 PR을 갱신하지 않음.
+
+### 2026-10-15 — 최신 규칙 v4의 실제 Windows JSON 테스트
+
+- **상태:** 실제 Windows CI에서 PowerShell 5.1/7 모두 성공. 사용자가 v4를 Windows에서 JSON으로 테스트하도록 요청했으며 기존에 승인한 코드 게시·Windows 테스트 목적과 경로로 진행.
+- **변경:** PowerShell 5.1/7 각각 UTF-8 BOM의 가상 JSON 파일(10체크포인트/35규칙/3SEC/분석 이슈 11개)을 명시적으로 생성하고 --input으로 전달하도록 workflow 보강. 부품 코드·규칙 문구·이슈는 직접 만든 가상 값이며 실제 회사 입력을 사용하지 않음.
+- **검증 범위:** 스키마 v4의 15개 테스트와 저장→모든 SEC 조회→원문/타입 보존→동일 입력 비누적→최신 교체→잘못된 입력 거부를 실제 Windows에서 실행 예정. 초기 JSON 파일을 수정하지 않았는지도 검증. 실행 결과는 완료 후 추가.
+- **게시:** feat/spdm-inspection에 최신 규칙 전용 코드·문서·가상 테스트·workflow만 게시. 실제 첨부 JSON·DB·보고서 및 배포 ZIP은 제외. main 병합은 수행하지 않음.
+
+- **첫 실행:** run 38721867130에서 PowerShell 7의 v4 테스트 15개·명시적 JSON 파일 환경 검증 성공. PowerShell 5.1은 Python 시작 전 ps1 문자열 종료 파싱 오류로 실패. UTF-8 BOM 없는 실행 스크립트의 한글 파일명 해석 문제를 피하도록 workflow 본문을 ASCII로 바꾸고 한글 작업 경로는 Unicode 코드 포인트로 생성. 입력 JSON은 UTF-8 BOM과 한글 내용을 그대로 유지하며 Python 내부 한글/공백/# 경로 검증도 유지. 수정 후 재실행 결과를 별도 기록.
+
+- **v4 최종 Windows 근거:** [run 38722021083](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083), 구현 02833ab 및 CI 인코딩 수정 74296ab 기준. Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1. Windows PowerShell 5.1.26100.33438(job 116378634794)과 PowerShell 7.6.6(job 116378635177) 각각 테스트 15개 및 명시적 UTF-8 BOM JSON 파일 검증 전체 성공. 10체크포인트/35규칙/3SEC/분석 이슈 11개 보존, 원문·구조화 타입·모든 SEC 조회·외래키·반복 비누적·최신 교체·잘못된 입력 시 기존 DB 보존·원본 불변 확인. 35→36개 추가·규격 변경·SEC 삭제·25회 페이지 비누적·SQL 롤백은 함께 실행된 15개 테스트에 포함.
+- **완료/배포:** 실행 결과는 output/spdm/latest-validation/windows-powershell51.json 및 windows-pwsh7.json으로 로컬 보관. JSON 실행 가이드와 ZIP의 MD를 최신 v4 Windows 성공 근거로 갱신. 테스트한 런타임 코드는 그대로이며 문서 갱신 후 테스트를 새로 수행한 것으로 기록하지 않음. feat/spdm-inspection에 일반 푸시하고 PR #2 설명 갱신. 실제 회사 파일은 게시하지 않음.
+
+### 2026-10-16 — SEC 코드 형식 제한 완화(v5)
+
+- **요구:** 사용자가 안내한 세 부분을 직접 수정했으며 저장소에도 같은 변경과 커밋·푸시를 요청. 8자리/10자리/하이픈 유무를 허용하고 하이픈 제거 등 자동 변환은 하지 않음.
+- **구현:** JSON 계약의 SEC pattern을 string/minLength 조건으로 교체, validate_sec_code는 문자열·공백뿐인 값만 검사하고 원문 반환, SQL SEC_CHECK는 length(trim(sec_code)) > 0. 스키마 버전 5, 기존 v4 이하 DB는 변형 없이 거부하고 새 rules-flex.sqlite 사용. 최신 규칙 교체 및 두 테이블 구조는 유지.
+- **검증:** Linux/Python 3.12.14에서 가상 테스트 18개 통과. 8/10자리·하이픈·영문·대소문자·앞뒤 공백의 원문 및 개별 조회 보존, 빈값/null/숫자 거부 후 기존 DB 불변, 양쪽 테이블 SQL 빈값 제한, v4 버전 거부 확인. 기존 규칙 교체/비누적/롤백 등 포함. Windows CI의 명시적 JSON fixture에도 10자리 SEC를 추가했으며 실행 결과는 후속 기록.
+- **문서/게시:** 실행 가이드·개발 가이드·모듈 README를 새 DB/스키마/SEC 정책으로 갱신. feat/spdm-inspection에 소스·문서·가상 테스트만 커밋·일반 푸시하고 PR #2 갱신. 실제 회사 입력·DB·보고서는 게시하지 않음.
+
+- **v5 Windows/배포 결과:** [run 38841920516](https://github.com/doukdoll/circuit-agent/actions/runs/38841920516), 구현 15478f3 기준. Windows Server 2025/Python 3.12.10, PowerShell 5.1.26100.33438(job 116783734525)과 7.6.6(job 116783734256) 각각 테스트 18개 및 명시적 JSON 파일 환경 검증 전체 통과. 8자리·10자리·하이픈 포함 SEC의 가상 JSON 사용, 한글/공백/# 경로·최신 교체·원문/타입 보존·오류 거부 확인. 새 spdm-json-flex.zip(10개 파일)을 pip/외부 패키지 없는 별도 환경에 추출하여 Python -S로 18개 테스트와 혼합 SEC 가상 JSON CLI 검증 통과. schema_v5.sql 초기화 확인. 이후 문서만 갱신하며 런타임 테스트를 다시 실행한 결과로 표현하지 않음. 실제 입력/DB/보고서는 ZIP과 게시 대상에서 제외.
+
+### 2026-10-16 — 환경 검증의 실제 JSON 검사 오류 사유 누락 수정
+
+- **사용자 확인:** 사내 Windows 11/Python 3.15.0/SQLite 3.53.4에서 기존 가상 테스트 18개 통과 후 실제 입력 inspect 단계가 종료 2로 실패. stderr가 비어 environment.json의 error에 실제 원인이 표시되지 않음. 사용자 제공 보고서에 근거하며 해당 PC나 입력을 직접 재현한 결과가 아님.
+- **확인된 코드 문제:** inspect CLI는 구조/값 오류를 JSON 보고서와 stdout에 쓰지만 환경 점검기가 stderr만 포함하고 임시 보고서는 종료 시 삭제. 실제 입력 오류 항목은 현재 보고서에서 알 수 없음. Python 버전·SEC 형식·보안 환경을 원인으로 단정하지 않음.
+- **수정:** 하위 명령 실패 시 command/종료 코드/stdout/stderr 보존, 검사 보고서의 오류 path/reason(최대 50개)을 failed_step.inspection에 복사. 원문 미리보기는 제외. stdout과 검사 오류를 사용해 빈 사유 방지. 구조 검사 전 원본 JSON의 키를 직접 탐색하던 부분을 검사 성공 후로 이동하여 잘못된 JSON/필드 누락도 같은 진단 경로로 보고. DB 스키마와 규칙 허용 조건은 변경하지 않음.
+- **검증:** Linux/Python 3.12에서 테스트 21개 통과. stderr가 빈 SEC 부모/하위 불일치, 잘못된 JSON/필드 누락/중복 키, 검사 보고서 없는 stderr 오류에 대한 회귀 테스트 포함. 실제 사내 오류의 원인은 사용자에게 path/reason 확인을 요청한 상태. Windows/Python 3.15 재실행은 아직 수행하지 않음.
+- **문서:** JSON 실행 가이드·개발 가이드에 원문 미리보기 없는 별도 검사 명령과 새 진단 필드 설명 추가. 이번 수정은 로컬 반영이며 아직 커밋·푸시하지 않음.
+
+### 2026-10-16 — 실제 입력의 적용 범위 null·선택 error 지원(v6)
+
+- **근거:** 사용자 검사 결과 28개 중 처음 10개를 확인. applicability:null의 string 타입 오류와 최상위 error 필드 거부를 확인. 전체 오류 목록과 error 자료형을 추가 요청했으며 실제 값/원문 자료를 요구하지 않음.
+- **변경:** applicability는 string/null을 허용하고 SQL TEXT NULL로 원형 보존. 최상위 error는 선택 JSON 메타데이터로 받아 부모 raw_json에 저장하고 조회 source_error/has_source_error_field에 표시. null 적용 범위는 경고, 비어 있지 않은 error/미완료 상태는 검토 필요로 표시. 원본 분석 오류가 있는 데이터가 자동 PASS가 되지 않으며 알 수 없는 다른 필드는 계속 거부.
+- **DB:** SQL 제약 변경으로 버전 6, 기존 v5 이하 DB는 보존하고 새 rules-v6.sqlite에 적재. 이력/테이블 추가 없이 최신 두 테이블 구조 유지.
+- **검증:** Linux/Python 3.12에서 24개 테스트 통과. null의 SQL/JSON 왕복, error null/문자열/객체 보존, checks 없는 실패 객체의 NO_CHECKS, checks와 error 병존 시 검토 표시, 임의 신규 키 거부, v5 보호 포함. 검사 진단 보존 수정도 같은 작업 트리에 유지. 실제 사내 전체 입력과 Windows/Python 3.15의 수정 후 성공은 아직 확인하지 않음.
+- **문서:** v6 실행 가이드/README/개발 가이드에 필드 의미와 새 DB 경로를 갱신. 현재 로컬 수정이며 커밋·푸시는 아직 수행하지 않음.
+
+
+## SPDM 트러블슈팅 기록
+
+이 절은 SPDM 개발 중 발생한 문제를 증상·원인·대응·검증 상태별로 찾기 위한 기록이다. 위 날짜별 이력과 함께 유지한다. 아래 테스트 결과는 각 작업에서 이미 실행한 결과를 재사용했으며 이번 문서 정리에서 새로 실행한 것으로 표현하지 않는다. 실제 회사 JSON·규칙 문구·개인 파일 경로는 기록하지 않는다.
+
+| 기록 | 문제 | 현재 확인 상태 |
+| --- | --- | --- |
+| TS-004 | Windows CI의 matrix 셸 표현식 거부 | 수정 후 실제 Windows CI 성공 |
+| TS-005 | PowerShell 5.1 실행 스크립트 문자열 파싱 오류 | 수정 후 실제 Windows CI 성공 |
+| TS-006 | SEC 길이·하이픈 제한으로 다른 형식 수용 불가 | v5 구현 및 Linux/Windows 테스트 성공 |
+| TS-007 | environment.json에 실제 입력 검사 실패 사유 누락 | 로컬·Windows CI 회귀 검증 완료, 사용자 PC 재검증 대기 |
+| TS-008 | 실제 JSON의 null·선택 error와 부분 샘플 기반 계약 불일치 | 사내 현재 파일 구조 검사·1,000체크포인트/2,572규칙 적재·선택 SEC 조회 성공 확인 |
+
+### TS-004 — Windows CI 셸 표현식이 실행 전 거부됨
+
+- **발생 환경/증상:** GitHub Actions에 추가한 Windows workflow가 작업 생성 전 실패. `Unrecognized named-value: 'matrix' ... matrix.shell`이 표시됐고 jobs가 없었다. Python 테스트는 아직 실행되지 않은 상태였다.
+- **확인 방법:** PR 이벤트만 조회하는 실행 목록에는 초기 실패가 보이지 않아 전체 workflow run 목록과 실행 페이지 annotation을 확인했다. YAML 파싱만 통과한 사실을 GitHub의 표현식 검사 통과로 간주할 수 없었다.
+- **원인:** 해당 shell 속성에서 사용한 matrix 표현식이 GitHub workflow 검증에서 거부됐다.
+- **대응/최종 수정:** pwsh/powershell step을 각각 두고 shell을 상수로 지정했다. matrix 값에 따른 선택은 각 step의 if 조건에서 수행했다.
+- **재검증:** 초기 실패 run 38720451877 이후 [run 38720635486](https://github.com/doukdoll/circuit-agent/actions/runs/38720635486)에서 실제 Windows 양쪽 셸 성공. 수정 커밋 5fbcf34. 당시 테스트는 13개였으며 최신 버전의 테스트 수와 구분한다.
+- **재발 방지:** CI 설정은 YAML 구문 확인과 실제 workflow 실행을 모두 확인한다. 실행 전 설정 오류를 Python/Windows 기능 실패로 기록하지 않는다.
+- **관련 파일:** `.github/workflows/spdm-json-windows.yml`.
+
+### TS-005 — PowerShell 5.1에서 CI 스크립트 문자열 파싱 실패
+
+- **발생 환경/증상:** 명시적 JSON fixture 생성 단계를 추가한 run 38721867130에서 pwsh는 성공했지만 powershell은 Python 실행 전에 `TerminatorExpectedAtEndOfString`으로 실패했다.
+- **가설/확인:** 한글 파일명 리터럴을 추가한 ps1의 인코딩 처리를 조사했다. BOM 없는 UTF-8을 사용하는 Windows PowerShell 5.1의 해석 차이를 피하는 방식으로 수정했다. 사내 PC의 Python 데이터 파싱 실패와는 다른 단계의 증상이다.
+- **대응/최종 수정:** workflow 실행문을 ASCII로 작성하고 한글 작업 경로는 Unicode 코드 포인트로 생성했다. fixture 생성 코드는 Python 파일로 저장해서 실행하고 JSON은 UTF-8 BOM으로 썼다. Python 내부의 한글·공백·# 경로 검증은 유지했다.
+- **재검증:** 수정 74296ab 이후 [run 38722021083](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083)에서 Windows PowerShell 5.1.26100.33438과 PowerShell 7.6.6 모두 v4 테스트 15개 및 명시적 JSON 파일 검증 성공.
+- **재발 방지:** PowerShell 5.1용 파일에 한글을 직접 넣어 저장할 때 UTF-8 BOM을 명시한다. CI 스크립트 파싱과 Python 프로그램의 UTF-8 JSON 지원을 구분한다.
+- **관련 파일:** Windows workflow 및 JSON 실행 가이드의 PowerShell 안내.
+
+### TS-006 — SEC 코드 자리수·하이픈 제한
+
+- **발생 조건/증상:** 사용자가 실제 SEC에 8자리·10자리·하이픈 유무가 섞여 있다고 확인. 기존 계약은 8자리 숫자 또는 4자리-6자리 형식만 허용했다.
+- **원인:** 형식 제한이 JSON 계약, 조회용 Python 정규식, 양쪽 SQLite 테이블 CHECK에 각각 존재했다. 한 곳만 바꾸면 다른 단계에서 다시 거부될 수 있었다.
+- **최종 수정:** `$defs.sec`를 string/minLength 조건으로 교체하고 validate_sec_code는 비어 있지 않은 문자열을 검사한 뒤 원문을 반환한다. SQL SEC_CHECK는 `length(trim(sec_code)) > 0`으로 변경. 하이픈 제거·대소문자/선행 0/앞뒤 공백 변환은 하지 않는다. 빈 문자열·공백뿐인 값·null·숫자 타입 거부와 부모/하위 SEC 원문 일치 검사는 유지한다.
+- **DB 대응:** 버전을 4에서 5로 올리고 새 rules-flex.sqlite에 적재하도록 안내했다. 버전 숫자를 바꾸는 것만으로 기존 테이블의 CHECK가 변경되지는 않는다. 기존 DB는 자동 수정하지 않는다.
+- **검증:** Linux 테스트 18개와 [Windows run 38841920516](https://github.com/doukdoll/circuit-agent/actions/runs/38841920516)의 PowerShell 5.1/7 테스트 18개 및 혼합 형식 JSON 파일 검증 성공. 서로 다른 표기를 자동으로 같은 코드에 합치지 않음을 확인. 구현 15478f3, 결과 기록 5c80aa0.
+- **재발 방지:** 식별자의 형식 허용과 식별자 정규화를 별도 정책으로 관리한다. 원본→수정본을 보여주고 JSON 검사·Python 조회·SQL 제약·기존 DB 처리까지 함께 안내한다.
+- **관련 파일:** `analysis.schema.json`, `sqlite_store.py`, `test_json_rules.py`.
+
+### TS-007 — 실제 JSON 검사 오류가 environment.json에서 빈 사유로 표시됨
+
+- **사용자 환경/증상:** Windows 11 / Python 3.15.0 / SQLite 3.53.4. 사용자 보고서에서 기존 가상 테스트 18개는 통과했지만 `inspect_json_rules.py: 종료 2, 예상 0:`으로 실패했으며 뒤의 사유가 비었다. 이는 사용자 제공 결과이며 해당 PC를 직접 실행한 결과가 아니다.
+- **확인된 원인:** inspect CLI는 입력 오류 항목을 검사 JSON에 기록하고 요약을 stdout으로 출력한다. 기존 환경 점검기는 stderr만 오류 메시지에 넣었다. 검사 보고서가 있던 임시 폴더도 종료 시 삭제되어 원인이 남지 않았다.
+- **진단 절차:** inspect CLI를 별도로 `--preview 0`으로 실행하고 issues에서 severity=error인 항목의 path/reason만 확인하도록 안내했다. 이 단계에서 실제 입력의 null/선택 필드 문제(TS-008)가 드러났다. Python 재설치·버전 변경으로 해결을 시도한 사실은 없다.
+- **최종 코드 수정:** 하위 명령의 stdout/stderr/종료 코드를 failed_step에 보존하고 검사 JSON의 오류 path/reason을 최대 50개 복사한다. 원문 미리보기는 포함하지 않는다. 실제 JSON의 키를 직접 탐색하기 전에 구조 검사부터 완료하도록 순서를 수정했다.
+- **로컬 재검증:** 진단 수정 시 테스트 21개 통과. stderr는 비었지만 검사 JSON에 SEC 불일치 사유가 있는 가상 사례에서 기존의 빈 오류를 재현하고 수정 후 경로/사유가 남는지 확인했다. 잘못된 JSON·누락 필드·중복 키·보고서가 없는 stderr 오류도 검증했다. 이후 v6의 24개 테스트에 포함된다.
+- **상태/한계:** 로컬 수정·회귀 검증 완료. 사내 Windows/Python 3.15에서 수정한 점검기의 재실행 성공은 아직 확인하지 않았다. 이 로그만으로 Python 3.15 호환성 전체를 보장하거나 설치 문제가 원인이라고 결론 내리지 않는다.
+- **관련 파일:** `verify_environment.py`, 환경 진단 회귀 테스트, 실행 가이드의 별도 검사 명령.
+
+### TS-008 — 실제 데이터의 applicability:null과 선택 error를 계약이 거부함
+
+- **발생 환경/증상:** 사내 실제 JSON을 별도 검사한 결과 오류 28개·경고 0개. 사용자가 제공한 처음 10개에는 `/0/analysis/checks/0/applicability` 같은 위치의 `string 필요, null 입력`과 최상위 `/0/error` 같은 위치의 `고정 계약에 없는 필드`가 포함됐다. 위 경로는 익명화 예시다.
+- **확인된 원인:** 처음 받은 부분 샘플을 기준으로 applicability를 필수 문자열로만 정의했고 최상위 속성을 닫힌 목록으로 제한하면서 선택 error를 정의하지 않았다. 실제 입력에서 확인된 미제공 값과 분석 실패 메타데이터를 지원하지 못한 것이다. JSON 키 이름이 동일하다는 것과 값이 null일 수 있는지, 선택 메타데이터가 있는지는 별도로 확인해야 했다.
+- **집계 해석:** 검사 출력의 체크포인트/규칙/SEC 0은 실제 데이터가 비었다는 뜻이 아니다. 초기 구조 검사에서 오류가 발생하면 이후 행 펼치기와 통계를 수행하지 않는 기존 동작 때문이다.
+- **잠재 후속 제약:** SQL의 applicability TEXT NOT NULL도 null 저장을 차단한다. 이번 사용자 로그는 SQL 단계 이전 검사 실패이므로, SQL 오류가 실제 발생했다고 기록하지 않는다. 코드 확인에 따라 입력 계약과 함께 수정한 제약이다.
+- **최종 수정:** JSON의 applicability를 string/null로 허용하고 SQL 컬럼을 nullable TEXT로 바꾼다. 최상위 error를 선택 JSON 메타데이터로 허용하며 required에는 넣지 않는다. null을 빈 문자열로 바꾸지 않고 SQL NULL로 저장한다. error는 부모 raw_json에 원형 저장하고 source_error/has_source_error_field로 조회한다. 미제공 적용 범위·분석 실패는 검토 표시를 남기며 PASS를 생성하지 않는다. 다른 알 수 없는 필드와 잘못된 SEC 타입은 계속 거부한다.
+- **수동 수정 안내:** 사내 v5 코드 기준으로 analysis.schema.json의 applicability 및 checkpoint.properties.error, sqlite_store.py의 SCHEMA_VERSION 5→6 및 rules.applicability NOT NULL 제거를 원본→수정본으로 안내했다. 이는 입력 거부·SQL 저장 문제의 필수 변경이다. 상세 진단·조회 표시·추가 테스트는 v6 전체 코드에 포함돼 수동 최소 수정과 전체 배포의 범위를 구분한다.
+- **DB 대응:** 기존 v5 이하 DB는 보존하고 새 rules-v6.sqlite를 사용한다. CREATE TABLE 정의 변경과 버전 숫자 변경만으로 기존 DB의 NOT NULL이 사라지지 않는다. 환경 점검기의 임시 DB와 실제 운영 DB 생성은 별개 단계다.
+- **로컬 재검증:** Linux/Python 3.12에서 v6 테스트 24개 통과. null의 SQL/JSON 왕복, error의 null/문자열/객체 보존, checks 없는 분석 실패의 NO_CHECKS, checks와 error 병존 시 검토 표시, 예상하지 않은 필드 거부, 기존 v5 보호를 확인했다. 별도 패키지 없는 venv에 v6 ZIP 10개 파일을 추출해 가상 혼합 데이터의 점검·저장·SEC 조회·최신 교체 전 과정도 통과했다. 실제 사내 파일을 가져와 실행한 결과가 아니다.
+- **상태/다음 확인:** 이후 사용자 사내 실행 로그에서 현재 입력의 구조 검사 성공을 확인했다: 1,000체크포인트/2,572규칙/143SEC, 오류 0·경고 950·원본 분석 이슈 923. 사용자 보고서에 근거하며 해당 파일을 외부에서 직접 실행한 결과가 아니다. 이전 오류 28개의 전체 목록·error의 실제 자료형·입력 파일 동일 해시는 확인하지 않았으므로 각각의 이전 오류가 어떻게 해소됐는지 추정하지 않는다. 이후 사용자 로그로 rules-v6.sqlite에 imported/1,000체크포인트/2,572규칙 저장과 선택한 SEC의 MATCHED/2체크포인트/4규칙 조회 성공도 확인했다. 환경 점검기 전체 재실행·143개 SEC 전수 조회·실제 회로 판정은 아직 확인하지 않았다.
+- **재발 방지:** 정제 담당자와 필수/선택 키 및 필드별 null 허용 여부를 명시한다. 부분 샘플에서 보이지 않은 값 상태를 전체 계약으로 단정하지 않는다. 분석 성공·실패·미완료 입력을 가상 테스트에 포함한다. 오류가 난다고 모든 additionalProperties/타입 검사를 한꺼번에 해제하지 않는다. 사용자 PC에서 수정이 필요하면 정확한 원본→수정본과 새 DB 필요 여부를 먼저 안내한다.
+- **관련 파일:** JSON 계약·파서·SQLite 저장/조회·환경 점검기·가상 테스트·[실행 가이드](SPDM_JSON_RUN.md). 이번 v6 및 진단 수정은 72a84c7로 feat/spdm-inspection에 커밋·푸시했다. Windows CI 결과는 아래 게시 기록에 추가했고 사내 현재 파일의 구조 검사 성공은 후속 기록에 남겼다. DB 적재·선택 SEC 조회 성공은 후속 사용자 로그로 확인했으며 환경 점검기 전체 재실행은 대기 중이다.
+
+### v6 수정 및 트러블슈팅 기록 게시
+
+- 사용자가 v6 수정·진단 개선·트러블슈팅 기록의 커밋·푸시를 승인. 기존 feat/spdm-inspection 브랜치와 PR #2를 갱신하며 main 병합은 수행하지 않음.
+- Windows CI 가상 JSON에 applicability:null, checks와 error가 함께 있는 항목, analysis:null/status:error 항목을 추가. 11체크포인트/35규칙/3SEC 가상 파일로 두 PowerShell 환경에서 확인. 회사 원본은 포함하지 않음. 실행 결과는 완료 후 기록.
+
+- **최종 Windows/게시 근거:** 구현 72a84c7을 feat/spdm-inspection에 일반 푸시. [run 38844322522](https://github.com/doukdoll/circuit-agent/actions/runs/38844322522)에서 Windows Server 2025/Python 3.12.10, PowerShell 5.1.26100.33438(job 116791274539)과 7.6.6(job 116791274357) 각각 테스트 24개 및 JSON CLI 환경 검증 전체 성공. 가상 11체크포인트/35규칙/3SEC 파일에 null 적용 범위와 분석 실패 항목 포함. 검사 진단 보존과 null/error 왕복은 24개 테스트에 포함. 이 결과는 사내 Windows 11/Python 3.15의 실제 전체 입력 성공을 뜻하지 않는다.
+- **문서/검증 구분:** 트러블슈팅 TS-004~008, 수동 원본→수정본 및 새 DB 경로를 같은 PR #2에 포함. 위 결과 확인 후 문서만 갱신하며 런타임 테스트를 새로 반복한 결과로 표현하지 않음. 실제 입력·DB·보고서·배포 ZIP은 Git 게시에서 제외.
+
+### 사내 현재 입력 파일의 JSON 구조 검사 성공 확인
+
+- **사용자 확인:** 사내 PowerShell에서 inspect_json_rules.py 실행 결과 1,000체크포인트/2,572규칙/143고유SEC, 오류 0개·경고 950개·원본 분석 이슈 923개. 가상 테스트나 외부 재현이 아니라 사용자가 제공한 실제 실행 출력으로 확인.
+- **해석:** 구조/타입·SEC 일치 등의 필수 검사를 통과하여 해당 파일을 적재할 수 있는 상태. 원본 분석 issues 923개가 경고에 포함되고 다른 파서 주의 항목이 27개 추가된다. 경고 수는 부품/규칙별 FAIL 수나 고유 문제 수가 아니다. 원본 모호함/분석 실패/미제공 값을 수정·삭제하거나 회로 PASS로 판단한 결과도 아니다.
+- **다음 단계:** 실제 적재·조회는 별도 확인. 기존 rules-latest.sqlite에 이전 버전 제약이 남아 있을 수 있으므로 v6 코드는 새 rules-v6.sqlite 경로 사용 안내. 경고 내용의 분류·개별 규칙 검토도 필요. 사내 전체 Rule 원본이나 추가 보드 검증 완료로 확대 해석하지 않음.
+- **기록 범위:** 이번에는 사용자 로그에 따른 문서 상태만 갱신. 프로그램 코드를 변경하거나 런타임 테스트를 다시 수행하지 않았으며 커밋·푸시는 아직 하지 않음.
+
+### 사내 실제 DB 적재·선택 SEC 조회 성공 확인
+
+- **적재 확인:** 사용자 PowerShell 로그의 상태 imported, 오류 0·경고 950·중복후보 0, stored_checkpoints=1,000/stored_rows=2,572. rules-v6.sqlite 파일에 저장 완료로 보고됨. 실제 회사 파일이나 DB를 외부에서 읽은 검증은 아니다.
+- **조회 확인:** 같은 DB에서 사용자가 선택한 SEC의 match_status=MATCHED, checkpoints 2개/rules 4개를 반환. 원문·parameters·required_design_facts·evidence·원본 이슈·소스 위치가 출력되는 것 확인. 실제 SEC 값·규격 문구·출처 식별자는 문서와 가상 테스트에 복사하지 않음.
+- **의미:** 전체 저장 규칙 수와 단일 SEC 조회 규칙 수는 범위가 다르다. MATCHED는 규칙을 찾았다는 뜻이며 실제 QCV/BOM 준수 여부 판정은 아니다. has_preprocessing_issues=true는 원본 분석 이슈를 보존한 정상 동작. original_checkpoint=null은 독립 원문 필드 부재, design_value=null은 실제 회로 설계값 미수집 상태를 나타낸다.
+- **범위/한계:** 현재 사용자 파일의 구조 검사→SQLite 적재→선택 SEC 조회까지 성공 확인으로 상태 갱신. 143개 SEC 전수 비교, 값 변경 후 사내 DB 교체, 환경 점검기 전체 재실행, 원본 이슈 해결·QCV/BOM 연결·Gemini 판정까지 확인된 것으로 기록하지 않음.
+- **문서 작업:** 사용자 결과를 반영한 기록과 실행 가이드만 갱신. 이번 턴에 코드나 테스트를 변경/재실행하지 않으며 아직 커밋·푸시하지 않음.
+
+### AUTOINCREMENT ID 정책 추가(v7)
+
+- **요구:** 사용자가 삭제된 ID 재사용 방지의 장점을 검토한 후 두 테이블을 AUTOINCREMENT로 교체하고 사내 코드의 정확한 수정 위치 안내를 요청.
+- **구현:** checkpoints.id/rules.id를 INTEGER PRIMARY KEY AUTOINCREMENT로 변경, SCHEMA_VERSION 6→7. 동일 DB 파일에서 이전에 커밋된 번호를 재사용하지 않으며 부모/자식 INSERT와 연결은 새 ID 기준으로 유지. 기존 두 업무 테이블의 최신 전체 교체·롤백·SEC/null/error 정책 유지.
+- **구별:** 동일 규칙의 ID 고정, 과거 데이터 이력 저장, ON DELETE CASCADE 추가는 수행하지 않음. 새 DB 파일에 이전 v6의 번호 이력이 자동 이전되는 것도 아님. SQLite 내부 sqlite_sequence는 번호 관리용이고 업무 테이블이 아니다. 코드/버전 수정만으로 기존 DB DDL이 바뀌지 않으므로 v6를 보존하고 새 rules-v7.sqlite에 JSON 재적재 안내.
+- **검증:** Linux/Python 3.12에서 25개 테스트 통과. 양쪽 최대 ID가 재적재 후 증가, 현재 행 수만 유지, 새 부모 연결·FK·원문 조회 유지 확인. 업무 테이블 검사에서 sqlite_% 내부 테이블 제외. 기존 버전 거부 대상에 v6 추가. 실패 시 삭제/삽입/번호 변경까지 롤백되는 기존 테스트도 통과.
+- **문서:** 실행 가이드 12장에 사내 v6 코드 원본→수정본(버전, ID 두 곳, 테스트 SQL)과 새 DB 적재·조회 경로 안내. 11장의 과거 v5→v6 기록은 보존하고 현재 변경과 구분. 기존 사내 성공 기록은 v6 결과로 유지.
+- **범위:** v7 Windows/사내 실제 입력 재실행은 아직 없음. 요청 범위의 로컬 구현이며 커밋·푸시는 수행하지 않음. 이전 문서의 사내 성공 상태 갱신 작업도 보존.
+
+### TS-009 — 사내 DB에서 rules AUTOINCREMENT가 False로 확인됨
+
+- **상태:** 사용자 보고에 따른 조사 중. 처음에는 rules AUTOINCREMENT=False만 보고됐고, 사용자가 이후 버전 7과 다른 항목 True를 확인했다고 추가 보고. rules 정의에 옵션이 없다는 점은 확인했지만 실제 DB 경로·수정한 소스/생성 순서는 제공되지 않아 원인을 단정하지 않음.
+- **가능한 원인/확인:** ID 선언 두 곳 중 rules만 누락했는지, 수정 전에 생성한 파일을 계속 사용하는지, $SpdmDb가 다른 파일을 가리키는지 확인 필요. 원인을 단정하지 않음. Select-String으로 SCHEMA_VERSION과 id INTEGER PRIMARY KEY 선언 두 줄 확인 안내.
+- **중요 동작:** 스키마 버전 숫자 변경이나 import 재실행은 기존 CREATE TABLE을 다시 만들지 않는다. 기존 파일의 헤더가 7이어도 rules 정의가 예전 상태로 생성됐다면 자동으로 변경되지 않는다.
+- **대응 안내:** 수정한 파일을 저장한 뒤 아직 존재하지 않는 새 DB 파일명으로 같은 JSON 적재, 그 파일을 $SpdmDb로 지정해 actual DDL을 읽기 전용 확인. 기존 파일은 보존. 양쪽 AUTOINCREMENT True와 버전 7 확인이 완료 기준. 수정 후 사내 성공 결과는 대기 중.
+- **검증 범위:** 문서 기록만 갱신하며 런타임 코드 변경/테스트 재실행이나 커밋·푸시는 수행하지 않음.
+
+- **TS-009 후속 배포 안내:** 사용자가 직접 수정 대신 파일 다운로드 교체와 재적재 방법을 요청. ID 변경 자체는 sqlite_store.py에 있지만 새 테스트가 json_rules/verify_environment 등에 의존하므로 버전 혼합 방지를 위해 8개 파일 묶음을 제공. 교체용 ZIP의 파일 집합·바이트 일치 확인, 실제 입력/DB/보고서 제외. 기존 DB 보존 후 타임스탬프가 붙은 새 v7 DB에 동일 JSON 재적재하는 PowerShell 명령을 실행 가이드 13장에 추가. 사내 적용 성공은 아직 미확인. 런타임 변경이나 테스트 재실행 없이 배포 파일·문서만 갱신.
+
+### v7 AUTOINCREMENT 및 교체 안내 게시
+
+- 사용자가 현재 v7 변경의 커밋·푸시를 승인. feat/spdm-inspection에 두 ID AUTOINCREMENT·버전 7·내부 테이블 검사 수정·ID 비재사용 회귀 테스트와 사내 교체/재적재 안내를 함께 게시. 사내 v6 구조 검사/적재/선택 SEC 조회 성공 기록 및 TS-009의 실제 DB와 소스 DDL 불일치 조사 내용도 포함.
+- 이번 게시 전 Linux/Python 3.12에서 테스트 25개를 새로 실행하여 통과. Windows CI 결과는 실행 완료 후 별도 추가. 실제 회사 입력·DB·보고서·ZIP은 Git에 포함하지 않고 가상 테스트만 사용. main 병합은 수행하지 않음.
+
+- **게시/Windows 검증 완료:** 구현 3b2794044efa1a320d94562d42c87e249257c9e5를 feat/spdm-inspection에 일반 푸시. [run 38857144781](https://github.com/doukdoll/circuit-agent/actions/runs/38857144781)에서 Windows Server 2025/Python 3.12.10/SQLite 3.49.1, Windows PowerShell 5.1.26100.33438(job 116831064706)과 PowerShell 7.6.6(job 116831064823) 각각 테스트 25개와 명시적 가상 JSON CLI 환경 검증 전체 성공. 11체크포인트/35규칙/3SEC, null/error와 원문/타입 보존·모든 SEC 조회·최신 교체·외래키·반복 비누적·실패 시 DB 보존 확인. ID 비재사용 및 새 부모 연결 회귀 검증은 25개 테스트에 포함.
+- **산출물/한계:** 두 CI 보고서는 output/spdm/v7-validation에 로컬 보관. 실행 가이드와 전체 ZIP의 가이드를 이 결과로 갱신하고 PR #2에 반영. 검증 후 런타임 코드는 변경하지 않았으며 문서만 갱신한 뒤 같은 테스트를 다시 실행한 것으로 기록하지 않음. 실제 회사 자료는 게시하지 않음. TS-009의 사내 v7 양쪽 AUTOINCREMENT 확인과 Windows 11/Python 3.15 환경 점검기 전체 재실행은 여전히 사용자 확인 대기.
