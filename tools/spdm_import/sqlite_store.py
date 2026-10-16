@@ -3,15 +3,12 @@
 from contextlib import closing
 import json
 from pathlib import Path
-import re
 import sqlite3
 
 
 APPLICATION_ID = 0x5350444D
-SCHEMA_VERSION = 4
-SEC_CHECK = """((length(sec_code)=8 AND sec_code NOT GLOB '*[^0-9]*') OR
-    (length(sec_code)=11 AND substr(sec_code,5,1)='-' AND
-     substr(sec_code,1,4) NOT GLOB '*[^0-9]*' AND substr(sec_code,6,6) NOT GLOB '*[^0-9]*'))"""
+SCHEMA_VERSION = 5
+SEC_CHECK = "(length(trim(sec_code)) > 0)"
 SCHEMA = [
     f"""CREATE TABLE checkpoints (
         id INTEGER PRIMARY KEY,
@@ -61,9 +58,9 @@ def encode_json(value):
 
 
 def validate_sec_code(value):
-    if not isinstance(value, str) or not re.fullmatch(r"(?:[0-9]{8}|[0-9]{4}-[0-9]{6})", value.strip()):
-        raise ValueError("SEC는 8자리 또는 4자리-6자리 원본 문자열이어야 함; 임의 변환하지 않음")
-    return value.strip()
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("SEC 코드는 비어 있지 않은 문자열이어야 함")
+    return value
 
 
 def distinct_paths(*paths):

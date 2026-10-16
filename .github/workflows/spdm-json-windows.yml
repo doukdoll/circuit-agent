@@ -42,7 +42,7 @@ jobs:
           import json
           from pathlib import Path
           from test_json_rules import synthetic_record
-          codes = ("00112233", "1234-567890", "99887766")
+          codes = ("00112233", "1234-567890", "9988776655")
           records = [synthetic_record(codes[i % 3], f"synthetic:{i}", 4 if i < 5 else 3) for i in range(10)]
           records[0]["analysis"]["issues"] = [{"code": "synthetic_issue", "description": "Synthetic ambiguity"} for _ in range(11)]
           Path("input-rules.json").write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8-sig")
@@ -74,7 +74,7 @@ jobs:
           import json
           from pathlib import Path
           from test_json_rules import synthetic_record
-          codes = ("00112233", "1234-567890", "99887766")
+          codes = ("00112233", "1234-567890", "9988776655")
           records = [synthetic_record(codes[i % 3], f"synthetic:{i}", 4 if i < 5 else 3) for i in range(10)]
           records[0]["analysis"]["issues"] = [{"code": "synthetic_issue", "description": "Synthetic ambiguity"} for _ in range(11)]
           Path("input-rules.json").write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8-sig")

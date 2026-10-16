@@ -5,7 +5,7 @@
   "minItems": 1,
   "items": {"$ref": "#/$defs/checkpoint"},
   "$defs": {
-    "sec": {"type": "string", "pattern": "^([0-9]{8}|[0-9]{4}-[0-9]{6})$"},
+    "sec": {"type": "string", "minLength": 1},
     "issue": {
       "type": "object", "additionalProperties": false,
       "required": ["code", "description"],

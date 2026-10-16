@@ -61,7 +61,7 @@ def validate(value, schema, root, path, errors):
         if len(value.strip()) < schema.get("minLength", 0):
             errors.append({"path": path, "severity": "error", "reason": "식별값이 비어 있음"})
         if "pattern" in schema and not re.fullmatch(schema["pattern"], value):
-            errors.append({"path": path, "severity": "error", "reason": "SEC는 8자리 또는 4자리-6자리 원본 문자열이어야 함"})
+            errors.append({"path": path, "severity": "error", "reason": "허용된 형식과 일치하지 않음"})
 
 
 @dataclass

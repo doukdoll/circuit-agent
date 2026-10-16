@@ -48,11 +48,11 @@ analysis.json → 고정 구조 검사 → 체크포인트/세부 규칙 저장
 
 **첨부 데이터에는 독립된 원문 `checkPoint`가 없다.** `original_checkpoint`/`original_checkPoint`는 null이다. `evidence`의 일부 인용문을 합쳐 원문 전체를 만들지 않는다. 원문이 필요하면 별도 원본과 연결해야 한다.
 
-SEC는 8자리 숫자 문자열과 `4자리-6자리` 문자열을 모두 허용한다. 선행 0과 하이픈을 보존하며 서로 다른 체계를 임의 변환하지 않는다.
+SEC는 비어 있지 않은 문자열이면 길이·숫자·영문·하이픈 유무와 관계없이 허용한다. 8자리·10자리·하이픈 포함 코드를 모두 받을 수 있다. 빈값·공백만 있는 값·null·숫자 타입은 거부한다. 선행 0·하이픈·대소문자·앞뒤 공백을 원문 그대로 저장·조회하며 자동 변환하지 않는다. `1234-567890`과 `1234567890`은 다른 코드다. 부모와 하위 규칙의 SEC도 원문이 같아야 한다.
 
 ## 3. Python과 새 ZIP 준비
 
-반입할 파일은 **`spdm-json-latest.zip`**과 이 Markdown이다. 실제 `analysis.json`은 별도로 사내 로컬에 둔다. 코드 ZIP에 실제 입력·DB·보고서는 포함하지 않는다. 이전 배포와 섞지 않고 새 폴더에 푼다.
+반입할 파일은 **`spdm-json-flex.zip`**과 이 Markdown이다. 실제 `analysis.json`은 별도로 사내 로컬에 둔다. 코드 ZIP에 실제 입력·DB·보고서는 포함하지 않는다. 이전 배포와 섞지 않고 새 폴더에 푼다.
 
 Python이 없으면 사내 승인 경로 또는 https://www.python.org/downloads/windows/ 의 정식 Windows 설치 프로그램을 사용한다. Python 3.12.x 설치 프로그램이 있는 버전 예시는 https://www.python.org/downloads/release/python-31210/ 이다. 설치 이후 프로그램 실행에 인터넷은 필요 없다.
 
@@ -65,7 +65,7 @@ New-Item -ItemType Directory -Path $SpdmRoot -Force | Out-Null
 
 ```text
 C:\Users\<사용자>\SpdmJson\
-├── spdm-json-latest.zip
+├── spdm-json-flex.zip
 └── data\analysis.json
 ```
 
@@ -73,7 +73,7 @@ C:\Users\<사용자>\SpdmJson\
 
 ```powershell
 Expand-Archive `
-  -LiteralPath (Join-Path $SpdmRoot "spdm-json-latest.zip") `
+  -LiteralPath (Join-Path $SpdmRoot "spdm-json-flex.zip") `
   -DestinationPath (Join-Path $SpdmRoot "app")
 
 $SpdmApp = Join-Path $SpdmRoot "app\spdm_json"
@@ -105,10 +105,10 @@ query_rules.py
 test_json_rules.py
 verify_environment.py
 SPDM_JSON_RUN.md
-schema_v4.sql
+schema_v5.sql
 ```
 
-`schema_v4.sql`은 스키마 참조용이다. 직접 실행하지 않아도 프로그램이 DB를 생성한다.
+`schema_v5.sql`은 스키마 참조용이다. 직접 실행하지 않아도 프로그램이 DB를 생성한다.
 
 ## 4. 실제 입력 없이 테스트
 
@@ -117,7 +117,7 @@ schema_v4.sql
 if ($LASTEXITCODE -ne 0) { throw "테스트 실패. 반입 파일과 Python을 확인하세요." }
 ```
 
-기대 결과는 JSON 전용 테스트 15개 통과다. 가상 JSON과 임시 DB만 사용한다. 한글·공백 경로, 외부 연결 차단, 원문·타입 보존, 재실행, 실패 시 롤백도 포함한다.
+기대 결과는 JSON 전용 테스트 18개 통과다. 가상 JSON과 임시 DB만 사용한다. 한글·공백 경로, 외부 연결 차단, 원문·타입 보존, 재실행, 실패 시 롤백도 포함한다.
 
 ### 네 Windows PC에서 실제 실행 환경을 검증하려면
 
@@ -137,7 +137,7 @@ $SpdmStamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $SpdmInspectionReport = Join-Path $SpdmOutput "inspection_$SpdmStamp.json"
 $SpdmImportReport = Join-Path $SpdmOutput "import_$SpdmStamp.json"
 $SpdmQueryReport = Join-Path $SpdmOutput "query_$SpdmStamp.json"
-$SpdmDb = Join-Path $SpdmOutput "rules-latest.sqlite"
+$SpdmDb = Join-Path $SpdmOutput "rules-flex.sqlite"
 
 & $SpdmPython .\inspect_json_rules.py $SpdmInput `
   --report $SpdmInspectionReport --preview 3
@@ -225,7 +225,7 @@ checkpoints: 현재 JSON의 최상위 객체·summary·status·issues
 
 테이블은 두 개이며 가져오기 이력 테이블과 batch_id는 없다. `rules(sec_code)` 인덱스로 조회하고 `(checkpoint_db_id, source_check_index)`로 항목 위치를 구분한다. target_description은 유일 키가 아니다. 내부 id는 교체 후 재사용될 수 있으므로 외부 식별자로 저장하지 않는다. 원본의 checkpoint_id/row_uid/requirement_id와 현재 JSON 위치를 사용한다.
 
-스키마는 최신 규칙 전용 v4다. 이전 v1/v2/v3 DB를 자동 변환하지 않으며 그대로 보존한다. 새 `rules-latest.sqlite` 경로에 원본 JSON을 적재한다. 이후에는 같은 v4 DB를 계속 갱신한다. 다른 용도의 DB나 지원하지 않는 버전은 읽기/적재 모두 거부한다.
+스키마는 SEC 형식 제한을 완화한 v5다. 이전 v1/v2/v3/v4 DB를 자동 변환하지 않으며 그대로 보존한다. 새 `rules-flex.sqlite` 경로에 원본 JSON을 적재한다. 이후에는 같은 v5 DB를 계속 갱신한다. 다른 용도의 DB나 지원하지 않는 버전은 읽기/적재 모두 거부한다.
 
 새 전체 JSON을 받으면 5장부터 실행한다. 기존 규칙 추가·수정·삭제가 최신 파일대로 반영되며 이전 판본은 보관하지 않는다. 동일 파일을 여러 번 넣어도 현재 행 수만 유지한다. SQLite는 빈 페이지를 다음 저장에 재사용하므로 파일 크기가 삭제 즉시 줄어들지는 않을 수 있지만 과거 규칙 행을 계속 보관하지 않는다.
 
@@ -237,7 +237,7 @@ QCV/BOM 담당자는 `lookup_rules(database, sec_code)` 또는 조회 JSON을 �
 | --- | --- |
 | schema 파일 없음 | ZIP을 모두 함께 풀었는지 확인 |
 | 고정 필드 오류 | 단수 requirement와 필드 대소문자 확인. 입력 컬럼을 임의 변경하지 않음 |
-| SEC 형식/부모-하위 불일치 | 입력 담당자와 해당 위치 확인. 코드 변환/선행0 복구를 추측하지 않음 |
+| SEC 오류/부모-하위 불일치 | 문자열·빈값·부모/하위 원문 일치 확인. 하이픈 제거·대소문자 변환·앞뒤 공백 제거는 하지 않음 |
 | rejected | 보고서 inspection.issues의 path/reason 확인 |
 | 경고 11개 | 이번 파일의 원본 분석 이슈인지 확인. 구조 오류와 구분 |
 | NO_CHECKS | 상태·분석 없음·빈 checks 확인. PASS로 처리하지 않음 |
@@ -251,11 +251,9 @@ PowerShell을 닫으면 변수가 사라진다. 재시작할 때 3장의 경로 
 
 ## 10. 검증 범위
 
-최신 규칙 전용 v4는 Linux/Python 3.12.14에서 가상 테스트 15개와 첨부 JSON의 전체 저장·조회·원문/타입 보존·재실행을 검증했다. 첨부본은 10체크포인트/35규칙/3SEC이며 분석 이슈 11개를 보존한다. 35→36개 추가, 규격 변경, 이전 SEC 삭제, 25회 동일 입력에서 행·페이지 비누적, 삭제 후 부분 삽입 오류 시 기존 데이터 복구를 포함한다. Python -S와 외부 패키지 없는 별도 환경에서 배포를 검증한다.
+v5의 가상 테스트 18개를 Linux/Python 3.12.14에서 실행했다. 8자리·10자리·하이픈 유무·영문·대소문자·공백 포함 원문이 서로 섞이지 않고 저장·조회되는지 확인한다. 빈값·null·숫자는 거부하고 기존 v4 DB는 변경하지 않는다. 최신 규칙 교체·비누적·SQL 롤백·원문/타입 보존 검증도 포함한다.
 
-최신 v4는 실제 Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1에서도 검증했다. Windows PowerShell 5.1.26100.33438과 PowerShell 7.6.6 각각 테스트 15개와 JSON 파일 환경 검증 전체가 통과했다. [Windows 실행 근거](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083).
-
-Windows에서는 직접 만든 가상 UTF-8 BOM JSON(10체크포인트/35규칙/3SEC/분석 이슈 11개)을 파일로 생성하여 `--input`으로 전달했다. 한글·공백·# 경로에서 Python -S로 실행했고 보고서의 `system=Windows`, `windows_verified=true`, 모든 checks 성공을 확인했다. 실제 첨부본은 Windows CI에 전송하지 않았다.
+Windows CI도 8자리·10자리·하이픈 포함 SEC가 있는 가상 UTF-8 BOM JSON 파일을 사용하도록 갱신했다. v5의 실제 Windows 실행 결과는 완료 후 기록한다. 이전 v4의 [Windows 성공 기록](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083)은 과거 결과이며 이번 버전의 실행 결과로 표현하지 않는다.
 
 회사 PC에서는 4장의 `verify_environment.py --expect-windows --input ...` 명령으로 실제 JSON과 파일 접근 조건까지 확인한다. PowerShell 5.1용 .ps1 파일에 한글 문자열을 직접 넣어 저장한다면 UTF-8 BOM으로 저장한다. 안내된 명령을 PowerShell 창에 직접 붙여넣어 실행할 때는 .ps1 파일 저장이 필요 없다.
 

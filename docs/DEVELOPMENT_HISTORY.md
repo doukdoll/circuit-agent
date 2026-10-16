@@ -268,3 +268,10 @@ CRLF 사본 SHA-256:
 
 - **v4 최종 Windows 근거:** [run 38722021083](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083), 구현 02833ab 및 CI 인코딩 수정 74296ab 기준. Windows Server 2025 / Python 3.12.10 / SQLite 3.49.1. Windows PowerShell 5.1.26100.33438(job 116378634794)과 PowerShell 7.6.6(job 116378635177) 각각 테스트 15개 및 명시적 UTF-8 BOM JSON 파일 검증 전체 성공. 10체크포인트/35규칙/3SEC/분석 이슈 11개 보존, 원문·구조화 타입·모든 SEC 조회·외래키·반복 비누적·최신 교체·잘못된 입력 시 기존 DB 보존·원본 불변 확인. 35→36개 추가·규격 변경·SEC 삭제·25회 페이지 비누적·SQL 롤백은 함께 실행된 15개 테스트에 포함.
 - **완료/배포:** 실행 결과는 output/spdm/latest-validation/windows-powershell51.json 및 windows-pwsh7.json으로 로컬 보관. JSON 실행 가이드와 ZIP의 MD를 최신 v4 Windows 성공 근거로 갱신. 테스트한 런타임 코드는 그대로이며 문서 갱신 후 테스트를 새로 수행한 것으로 기록하지 않음. feat/spdm-inspection에 일반 푸시하고 PR #2 설명 갱신. 실제 회사 파일은 게시하지 않음.
+
+### 2026-10-16 — SEC 코드 형식 제한 완화(v5)
+
+- **요구:** 사용자가 안내한 세 부분을 직접 수정했으며 저장소에도 같은 변경과 커밋·푸시를 요청. 8자리/10자리/하이픈 유무를 허용하고 하이픈 제거 등 자동 변환은 하지 않음.
+- **구현:** JSON 계약의 SEC pattern을 string/minLength 조건으로 교체, validate_sec_code는 문자열·공백뿐인 값만 검사하고 원문 반환, SQL SEC_CHECK는 length(trim(sec_code)) > 0. 스키마 버전 5, 기존 v4 이하 DB는 변형 없이 거부하고 새 rules-flex.sqlite 사용. 최신 규칙 교체 및 두 테이블 구조는 유지.
+- **검증:** Linux/Python 3.12.14에서 가상 테스트 18개 통과. 8/10자리·하이픈·영문·대소문자·앞뒤 공백의 원문 및 개별 조회 보존, 빈값/null/숫자 거부 후 기존 DB 불변, 양쪽 테이블 SQL 빈값 제한, v4 버전 거부 확인. 기존 규칙 교체/비누적/롤백 등 포함. Windows CI의 명시적 JSON fixture에도 10자리 SEC를 추가했으며 실행 결과는 후속 기록.
+- **문서/게시:** 실행 가이드·개발 가이드·모듈 README를 새 DB/스키마/SEC 정책으로 갱신. feat/spdm-inspection에 소스·문서·가상 테스트만 커밋·일반 푸시하고 PR #2 갱신. 실제 회사 입력·DB·보고서는 게시하지 않음.

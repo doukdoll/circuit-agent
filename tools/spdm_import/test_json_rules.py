@@ -15,7 +15,7 @@ from inspect_json_rules import main as inspect_main
 from json_rules import parse_analysis
 from query_rules import main as query_main
 from sqlite_store import (InspectionError, SCHEMA_VERSION,
-                          import_analysis, lookup_rules)
+                          import_analysis, lookup_rules, validate_sec_code)
 
 
 def synthetic_record(sec="00112233", uid="synthetic:1", checks=2):
@@ -213,7 +213,7 @@ class JSONRulesTest(unittest.TestCase):
 
     def test_unsupported_versions_and_foreign_database_are_unchanged(self):
         self.write([synthetic_record()])
-        for version in (1, 2, 3, 999):
+        for version in (1, 2, 3, 4, 999):
             with self.subTest(version=version):
                 self.db.unlink(missing_ok=True)
                 result = import_analysis(self.source, self.db)
@@ -244,7 +244,46 @@ class JSONRulesTest(unittest.TestCase):
         lookup_rules(self.db, "00112233")
         self.assertEqual(before, self.db.read_bytes())
         with self.assertRaises(ValueError):
-            lookup_rules(self.db, "invalid-sec")
+            lookup_rules(self.db, "   ")
+
+    def test_flexible_sec_formats_are_preserved_and_not_merged(self):
+        codes = ["00112233", "0012345678", "1234-567890", "1234567890", "AbC-9", "abc-9", " X-1 "]
+        records = [synthetic_record(sec, f"synthetic:{index}", 1) for index, sec in enumerate(codes)]
+        self.write(records)
+        self.assertEqual(0, parse_analysis(self.source).report["errors"])
+        import_analysis(self.source, self.db)
+        for record in records:
+            code = record["sec_code"]
+            with self.subTest(sec=code):
+                result = lookup_rules(self.db, code)
+                self.assertEqual(code, result["sec_code"])
+                self.assertEqual([record["analysis"]["checks"][0]], [r["raw"] for r in result["rules"]])
+                self.assertEqual(code, validate_sec_code(code))
+        self.assertEqual("NOT_FOUND", lookup_rules(self.db, "X-1")["match_status"])
+
+    def test_blank_null_and_numeric_sec_are_rejected_before_replacement(self):
+        self.write([synthetic_record()])
+        import_analysis(self.source, self.db)
+        before = self.db.read_bytes()
+        for code in ("", "   ", "\t\n", None, 1234567890, True):
+            with self.subTest(sec=code):
+                self.write([synthetic_record(code)])
+                with self.assertRaises(InspectionError):
+                    import_analysis(self.source, self.db)
+                with self.assertRaises(ValueError):
+                    validate_sec_code(code)
+                self.assertEqual(before, self.db.read_bytes())
+
+    def test_both_tables_reject_empty_sec_via_sql_constraint(self):
+        self.write([synthetic_record("0012345678")])
+        import_analysis(self.source, self.db)
+        with closing(sqlite3.connect(self.db)) as connection:
+            for table in ("checkpoints", "rules"):
+                for code in ("", "   "):
+                    with self.subTest(table=table, sec=code):
+                        with self.assertRaises(sqlite3.IntegrityError):
+                            connection.execute(f"UPDATE {table} SET sec_code=?", (code,))
+                        connection.rollback()
 
     def test_missing_parent_cannot_be_linked(self):
         self.write([synthetic_record()])
