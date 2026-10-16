@@ -406,3 +406,6 @@ CRLF 사본 SHA-256:
 
 - 사용자가 현재 v7 변경의 커밋·푸시를 승인. feat/spdm-inspection에 두 ID AUTOINCREMENT·버전 7·내부 테이블 검사 수정·ID 비재사용 회귀 테스트와 사내 교체/재적재 안내를 함께 게시. 사내 v6 구조 검사/적재/선택 SEC 조회 성공 기록 및 TS-009의 실제 DB와 소스 DDL 불일치 조사 내용도 포함.
 - 이번 게시 전 Linux/Python 3.12에서 테스트 25개를 새로 실행하여 통과. Windows CI 결과는 실행 완료 후 별도 추가. 실제 회사 입력·DB·보고서·ZIP은 Git에 포함하지 않고 가상 테스트만 사용. main 병합은 수행하지 않음.
+
+- **게시/Windows 검증 완료:** 구현 3b2794044efa1a320d94562d42c87e249257c9e5를 feat/spdm-inspection에 일반 푸시. [run 38857144781](https://github.com/doukdoll/circuit-agent/actions/runs/38857144781)에서 Windows Server 2025/Python 3.12.10/SQLite 3.49.1, Windows PowerShell 5.1.26100.33438(job 116831064706)과 PowerShell 7.6.6(job 116831064823) 각각 테스트 25개와 명시적 가상 JSON CLI 환경 검증 전체 성공. 11체크포인트/35규칙/3SEC, null/error와 원문/타입 보존·모든 SEC 조회·최신 교체·외래키·반복 비누적·실패 시 DB 보존 확인. ID 비재사용 및 새 부모 연결 회귀 검증은 25개 테스트에 포함.
+- **산출물/한계:** 두 CI 보고서는 output/spdm/v7-validation에 로컬 보관. 실행 가이드와 전체 ZIP의 가이드를 이 결과로 갱신하고 PR #2에 반영. 검증 후 런타임 코드는 변경하지 않았으며 문서만 갱신한 뒤 같은 테스트를 다시 실행한 것으로 기록하지 않음. 실제 회사 자료는 게시하지 않음. TS-009의 사내 v7 양쪽 AUTOINCREMENT 확인과 Windows 11/Python 3.15 환경 점검기 전체 재실행은 여전히 사용자 확인 대기.

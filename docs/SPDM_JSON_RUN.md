@@ -264,7 +264,9 @@ PowerShell을 닫으면 변수가 사라진다. 재시작할 때 3장의 경로 
 
 ## 10. 검증 범위
 
-v7은 Linux/Python 3.12에서 테스트 25개를 통과했다. 양쪽 테이블의 이전 최대 ID보다 큰 번호가 재적재 후 생성되는지, 원본 규칙 조회와 새 부모/자식 연결·외래키가 유지되는지, 최신 행만 남는지 확인한다. 내부 sqlite_sequence를 업무 테이블 수에서 제외하며 기존 v6 DB는 변형 없이 거부한다. null/error 보존, 실패 진단, SEC 형식, 롤백·비누적 검증도 유지한다. 이번 v7 변경은 아직 실제 Windows에서 재실행하지 않았다.
+v7은 Linux/Python 3.12에서 테스트 25개를 통과했다. 양쪽 테이블의 이전 최대 ID보다 큰 번호가 재적재 후 생성되는지, 원본 규칙 조회와 새 부모/자식 연결·외래키가 유지되는지, 최신 행만 남는지 확인한다. 내부 sqlite_sequence를 업무 테이블 수에서 제외하며 기존 v6 DB는 변형 없이 거부한다. null/error 보존, 실패 진단, SEC 형식, 롤백·비누적 검증도 유지한다.
+
+구현 3b27940은 [v7 Windows CI](https://github.com/doukdoll/circuit-agent/actions/runs/38857144781)에서도 PowerShell 5.1.26100.33438과 7.6.6 각각 테스트 25개 및 JSON CLI 환경 검증 전체를 통과했다. Windows Server 2025/Python 3.12.10/SQLite 3.49.1에서 가상 11체크포인트/35규칙/3SEC JSON을 사용했다. 이는 사내 Windows 11/Python 3.15에서 v7을 적용한 결과와 구분한다.
 
 이전 v6는 [Windows CI](https://github.com/doukdoll/circuit-agent/actions/runs/38844322522)에서 PowerShell 5.1/7 각각 테스트 24개를 통과했다. 사용자는 사내 현재 파일의 구조 검사, 1,000체크포인트/2,572규칙/143SEC 적재, 선택 SEC의 2체크포인트/4규칙 조회와 v6 DDL을 확인했다. 이 결과는 v7을 회사 PC에서 실행한 결과가 아니다.
 
