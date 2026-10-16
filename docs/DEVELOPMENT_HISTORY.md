@@ -275,3 +275,5 @@ CRLF 사본 SHA-256:
 - **구현:** JSON 계약의 SEC pattern을 string/minLength 조건으로 교체, validate_sec_code는 문자열·공백뿐인 값만 검사하고 원문 반환, SQL SEC_CHECK는 length(trim(sec_code)) > 0. 스키마 버전 5, 기존 v4 이하 DB는 변형 없이 거부하고 새 rules-flex.sqlite 사용. 최신 규칙 교체 및 두 테이블 구조는 유지.
 - **검증:** Linux/Python 3.12.14에서 가상 테스트 18개 통과. 8/10자리·하이픈·영문·대소문자·앞뒤 공백의 원문 및 개별 조회 보존, 빈값/null/숫자 거부 후 기존 DB 불변, 양쪽 테이블 SQL 빈값 제한, v4 버전 거부 확인. 기존 규칙 교체/비누적/롤백 등 포함. Windows CI의 명시적 JSON fixture에도 10자리 SEC를 추가했으며 실행 결과는 후속 기록.
 - **문서/게시:** 실행 가이드·개발 가이드·모듈 README를 새 DB/스키마/SEC 정책으로 갱신. feat/spdm-inspection에 소스·문서·가상 테스트만 커밋·일반 푸시하고 PR #2 갱신. 실제 회사 입력·DB·보고서는 게시하지 않음.
+
+- **v5 Windows/배포 결과:** [run 38841920516](https://github.com/doukdoll/circuit-agent/actions/runs/38841920516), 구현 15478f3 기준. Windows Server 2025/Python 3.12.10, PowerShell 5.1.26100.33438(job 116783734525)과 7.6.6(job 116783734256) 각각 테스트 18개 및 명시적 JSON 파일 환경 검증 전체 통과. 8자리·10자리·하이픈 포함 SEC의 가상 JSON 사용, 한글/공백/# 경로·최신 교체·원문/타입 보존·오류 거부 확인. 새 spdm-json-flex.zip(10개 파일)을 pip/외부 패키지 없는 별도 환경에 추출하여 Python -S로 18개 테스트와 혼합 SEC 가상 JSON CLI 검증 통과. schema_v5.sql 초기화 확인. 이후 문서만 갱신하며 런타임 테스트를 다시 실행한 결과로 표현하지 않음. 실제 입력/DB/보고서는 ZIP과 게시 대상에서 제외.

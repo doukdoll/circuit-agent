@@ -253,7 +253,7 @@ PowerShell을 닫으면 변수가 사라진다. 재시작할 때 3장의 경로 
 
 v5의 가상 테스트 18개를 Linux/Python 3.12.14에서 실행했다. 8자리·10자리·하이픈 유무·영문·대소문자·공백 포함 원문이 서로 섞이지 않고 저장·조회되는지 확인한다. 빈값·null·숫자는 거부하고 기존 v4 DB는 변경하지 않는다. 최신 규칙 교체·비누적·SQL 롤백·원문/타입 보존 검증도 포함한다.
 
-Windows CI도 8자리·10자리·하이픈 포함 SEC가 있는 가상 UTF-8 BOM JSON 파일을 사용하도록 갱신했다. v5의 실제 Windows 실행 결과는 완료 후 기록한다. 이전 v4의 [Windows 성공 기록](https://github.com/doukdoll/circuit-agent/actions/runs/38722021083)은 과거 결과이며 이번 버전의 실행 결과로 표현하지 않는다.
+v5는 Windows Server 2025/Python 3.12.10의 PowerShell 5.1.26100.33438과 PowerShell 7.6.6에서도 각각 테스트 18개 및 JSON 파일 환경 검증 전체가 통과했다. [v5 Windows 실행 근거](https://github.com/doukdoll/circuit-agent/actions/runs/38841920516). 8자리·10자리·하이픈 포함 SEC가 있는 가상 UTF-8 BOM JSON 파일(10체크포인트/35규칙/3SEC/이슈 11개)을 명시적으로 읽어 저장·전체 SEC 조회·원문 보존·최신 교체·잘못된 입력 거부를 확인했다. 실제 회사 입력은 CI에 전송하지 않았다.
 
 회사 PC에서는 4장의 `verify_environment.py --expect-windows --input ...` 명령으로 실제 JSON과 파일 접근 조건까지 확인한다. PowerShell 5.1용 .ps1 파일에 한글 문자열을 직접 넣어 저장한다면 UTF-8 BOM으로 저장한다. 안내된 명령을 PowerShell 창에 직접 붙여넣어 실행할 때는 .ps1 파일 저장이 필요 없다.
 
