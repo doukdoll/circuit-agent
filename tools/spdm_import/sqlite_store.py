@@ -7,11 +7,11 @@ import sqlite3
 
 
 APPLICATION_ID = 0x5350444D
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 SEC_CHECK = "(length(trim(sec_code)) > 0)"
 SCHEMA = [
     f"""CREATE TABLE checkpoints (
-        id INTEGER PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         source_record_index INTEGER NOT NULL,
         checkpoint_id TEXT NOT NULL,
         row_uid TEXT NOT NULL,
@@ -23,7 +23,7 @@ SCHEMA = [
         UNIQUE(source_record_index)
     )""",
     f"""CREATE TABLE rules (
-        id INTEGER PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         checkpoint_db_id INTEGER NOT NULL REFERENCES checkpoints(id),
         source_row INTEGER NOT NULL,
         source_check_index INTEGER NOT NULL,

@@ -127,7 +127,8 @@ class JSONRulesTest(unittest.TestCase):
         self.assertEqual((1, 36), self.counts())
         with closing(sqlite3.connect(self.db)) as connection:
             self.assertEqual(initial_pages, connection.execute("PRAGMA page_count").fetchone()[0])
-            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            tables = {row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
             self.assertEqual({"checkpoints", "rules"}, tables)
             for table in tables:
                 columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
@@ -215,7 +216,7 @@ class JSONRulesTest(unittest.TestCase):
 
     def test_unsupported_versions_and_foreign_database_are_unchanged(self):
         self.write([synthetic_record()])
-        for version in (1, 2, 3, 4, 5, 999):
+        for version in (1, 2, 3, 4, 5, 6, 999):
             with self.subTest(version=version):
                 self.db.unlink(missing_ok=True)
                 result = import_analysis(self.source, self.db)
@@ -296,6 +297,30 @@ class JSONRulesTest(unittest.TestCase):
                 connection.execute("UPDATE rules SET checkpoint_db_id=999999")
             connection.rollback()
             self.assertEqual([], connection.execute("PRAGMA foreign_key_check").fetchall())
+
+    def test_replacement_does_not_reuse_committed_ids_and_relinks_parents(self):
+        records = [synthetic_record(), synthetic_record("another-sec", "synthetic:2", 1)]
+        self.write(records)
+        import_analysis(self.source, self.db)
+        with closing(sqlite3.connect(self.db)) as connection:
+            old_max = {table: connection.execute(f"SELECT MAX(id) FROM {table}").fetchone()[0]
+                       for table in ("checkpoints", "rules")}
+        import_analysis(self.source, self.db)
+        self.assertEqual((2, 3), self.counts())
+        with closing(sqlite3.connect(self.db)) as connection:
+            for table in ("checkpoints", "rules"):
+                with self.subTest(table=table):
+                    new_min = connection.execute(f"SELECT MIN(id) FROM {table}").fetchone()[0]
+                    self.assertGreater(new_min, old_max[table])
+                    maximum = connection.execute(f"SELECT MAX(id) FROM {table}").fetchone()[0]
+                    sequence = connection.execute("SELECT seq FROM sqlite_sequence WHERE name=?", (table,)).fetchone()[0]
+                    self.assertEqual(maximum, sequence)
+            self.assertEqual([], connection.execute("PRAGMA foreign_key_check").fetchall())
+        for record in records:
+            result = lookup_rules(self.db, record["sec_code"])
+            self.assertEqual(record["analysis"]["checks"], [rule["raw"] for rule in result["rules"]])
+            parent_id = result["checkpoints"][0]["id"]
+            self.assertTrue(all(rule["checkpoint_db_id"] == parent_id for rule in result["rules"]))
 
     def test_whole_pipeline_runs_when_network_connections_are_disabled(self):
         self.write([synthetic_record()])

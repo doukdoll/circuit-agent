@@ -54,7 +54,7 @@ SEC는 비어 있지 않은 문자열이면 길이·숫자·영문·하이픈 �
 
 ## 3. Python과 새 ZIP 준비
 
-반입할 파일은 **`spdm-json-v6.zip`**과 이 Markdown이다. 실제 `analysis.json`은 별도로 사내 로컬에 둔다. 코드 ZIP에 실제 입력·DB·보고서는 포함하지 않는다. 이전 배포와 섞지 않고 새 폴더에 푼다.
+반입할 파일은 **`spdm-json-v7.zip`**과 이 Markdown이다. 실제 `analysis.json`은 별도로 사내 로컬에 둔다. 코드 ZIP에 실제 입력·DB·보고서는 포함하지 않는다. 이전 배포와 섞지 않고 새 폴더에 푼다.
 
 Python이 없으면 사내 승인 경로 또는 https://www.python.org/downloads/windows/ 의 정식 Windows 설치 프로그램을 사용한다. Python 3.12.x 설치 프로그램이 있는 버전 예시는 https://www.python.org/downloads/release/python-31210/ 이다. 설치 이후 프로그램 실행에 인터넷은 필요 없다.
 
@@ -67,7 +67,7 @@ New-Item -ItemType Directory -Path $SpdmRoot -Force | Out-Null
 
 ```text
 C:\Users\<사용자>\SpdmJson\
-├── spdm-json-v6.zip
+├── spdm-json-v7.zip
 └── data\analysis.json
 ```
 
@@ -75,7 +75,7 @@ C:\Users\<사용자>\SpdmJson\
 
 ```powershell
 Expand-Archive `
-  -LiteralPath (Join-Path $SpdmRoot "spdm-json-v6.zip") `
+  -LiteralPath (Join-Path $SpdmRoot "spdm-json-v7.zip") `
   -DestinationPath (Join-Path $SpdmRoot "app")
 
 $SpdmApp = Join-Path $SpdmRoot "app\spdm_json"
@@ -107,10 +107,10 @@ query_rules.py
 test_json_rules.py
 verify_environment.py
 SPDM_JSON_RUN.md
-schema_v6.sql
+schema_v7.sql
 ```
 
-`schema_v6.sql`은 스키마 참조용이다. 직접 실행하지 않아도 프로그램이 DB를 생성한다.
+`schema_v7.sql`은 스키마 참조용이다. 직접 실행하지 않아도 프로그램이 DB를 생성한다.
 
 ## 4. 실제 입력 없이 테스트
 
@@ -119,7 +119,7 @@ schema_v6.sql
 if ($LASTEXITCODE -ne 0) { throw "테스트 실패. 반입 파일과 Python을 확인하세요." }
 ```
 
-기대 결과는 JSON 전용 테스트 24개 통과다. 가상 JSON과 임시 DB만 사용한다. 한글·공백 경로, 외부 연결 차단, 원문·타입 보존, 재실행, 실패 시 롤백도 포함한다.
+기대 결과는 JSON 전용 테스트 25개 통과다. 가상 JSON과 임시 DB만 사용한다. 한글·공백 경로, 외부 연결 차단, 원문·타입 보존, 재실행, 실패 시 롤백도 포함한다.
 
 ### 네 Windows PC에서 실제 실행 환경을 검증하려면
 
@@ -150,7 +150,7 @@ $SpdmStamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $SpdmInspectionReport = Join-Path $SpdmOutput "inspection_$SpdmStamp.json"
 $SpdmImportReport = Join-Path $SpdmOutput "import_$SpdmStamp.json"
 $SpdmQueryReport = Join-Path $SpdmOutput "query_$SpdmStamp.json"
-$SpdmDb = Join-Path $SpdmOutput "rules-v6.sqlite"
+$SpdmDb = Join-Path $SpdmOutput "rules-v7.sqlite"
 
 & $SpdmPython .\inspect_json_rules.py $SpdmInput `
   --report $SpdmInspectionReport --preview 3
@@ -183,7 +183,7 @@ $SpdmImport | Format-List status, stored_checkpoints, stored_rows
 
 입력을 JSON으로만 해석한다. 입력 형식 선택이나 컬럼 매핑 옵션은 없다. 동봉된 `analysis.schema.json`의 고정 계약을 사용한다.
 
-이번 입력의 첫 적재는 `imported`, `stored_checkpoints=10`, `stored_rows=35`가 예상된다. 이후 저장은 같은 파일도 `replaced`이며 현재 JSON 전체로 기존 규칙을 교체한다. 이전 규칙이나 가져오기 이력을 누적하지 않는다. 35개에서 36개로 바꾸면 DB에는 36개만 남는다.
+첫 적재는 imported다. 초기 부분 샘플은 10체크포인트/35규칙이며 사용자가 확인한 사내 입력은 1,000체크포인트/2,572규칙이다. 실제 파일에 따라 출력 건수가 달라진다. 이후 저장은 같은 파일도 `replaced`이며 현재 JSON 전체로 기존 규칙을 교체한다. 이전 규칙이나 가져오기 이력을 누적하지 않는다. 35개에서 36개로 바꾸면 DB에는 36개만 남는다.
 
 **매번 DB에 남길 최신 전체 JSON을 넣는다.** 새 파일에 없는 체크포인트·규칙·SEC는 제거된다. 부분 파일을 추가 업로드해 기존 규칙과 합치는 방식이 아니다. 지금 제공한 부분 샘플을 넣으면 그 부분만 현재 DB에 남는다.
 
@@ -236,9 +236,9 @@ checkpoints: 현재 JSON의 최상위 객체·summary·status·issues
              checkpoint_db_id → checkpoints.id
 ```
 
-테이블은 두 개이며 가져오기 이력 테이블과 batch_id는 없다. `rules(sec_code)` 인덱스로 조회하고 `(checkpoint_db_id, source_check_index)`로 항목 위치를 구분한다. target_description은 유일 키가 아니다. 내부 id는 교체 후 재사용될 수 있으므로 외부 식별자로 저장하지 않는다. 원본의 checkpoint_id/row_uid/requirement_id와 현재 JSON 위치를 사용한다.
+업무 테이블은 두 개이며 가져오기 이력 테이블과 batch_id는 없다. AUTOINCREMENT를 사용해 SQLite 내부 관리 테이블 sqlite_sequence가 추가로 보일 수 있다. 이는 두 테이블의 번호를 관리하며 과거 규칙을 저장하지 않는다. `rules(sec_code)` 인덱스로 조회하고 `(checkpoint_db_id, source_check_index)`로 항목 위치를 구분한다. target_description은 유일 키가 아니다. 두 테이블의 id는 INTEGER PRIMARY KEY AUTOINCREMENT다. 같은 DB에서 커밋된 ID를 최신 데이터 교체 후 재사용하지 않는다. 동일 규칙의 ID가 갱신 후 유지되는 기능은 아니므로 소스 추적에는 원본 식별자를 함께 사용한다. 새 DB 파일을 만들면 그 파일의 ID 이력이 새로 시작한다. 원본의 checkpoint_id/row_uid/requirement_id와 현재 JSON 위치를 사용한다.
 
-스키마는 적용 범위 null을 보존하는 v6다. 이전 v1/v2/v3/v4/v5 DB를 자동 변환하지 않으며 그대로 보존한다. 새 `rules-v6.sqlite` 경로에 원본 JSON을 적재한다. 이후에는 같은 v6 DB를 계속 갱신한다. 다른 용도의 DB나 지원하지 않는 버전은 읽기/적재 모두 거부한다.
+스키마는 ID 재사용 방지를 추가한 v7이다. 이전 v1/v2/v3/v4/v5/v6 DB를 자동 변환하지 않으며 그대로 보존한다. 새 `rules-v7.sqlite` 경로에 원본 JSON을 적재한다. 이후에는 같은 v7 DB를 계속 갱신한다. 다른 용도의 DB나 지원하지 않는 버전은 읽기/적재 모두 거부한다.
 
 새 전체 JSON을 받으면 5장부터 실행한다. 기존 규칙 추가·수정·삭제가 최신 파일대로 반영되며 이전 판본은 보관하지 않는다. 동일 파일을 여러 번 넣어도 현재 행 수만 유지한다. SQLite는 빈 페이지를 다음 저장에 재사용하므로 파일 크기가 삭제 즉시 줄어들지는 않을 수 있지만 과거 규칙 행을 계속 보관하지 않는다.
 
@@ -264,15 +264,16 @@ PowerShell을 닫으면 변수가 사라진다. 재시작할 때 3장의 경로 
 
 ## 10. 검증 범위
 
-v6는 Linux/Python 3.12에서 테스트 24개를 실행했다. applicability의 null을 빈 문자열로 바꾸지 않고 SQL NULL로 저장·조회하는지, 선택 error 필드를 원문과 조회에 보존하는지, 분석 실패/빈 checks를 PASS로 취급하지 않는지 확인한다. 오류 진단 보존·SEC 원문·최신 교체·비누적·롤백 및 기존 v5 DB 불변도 확인한다.
+v7은 Linux/Python 3.12에서 테스트 25개를 통과했다. 양쪽 테이블의 이전 최대 ID보다 큰 번호가 재적재 후 생성되는지, 원본 규칙 조회와 새 부모/자식 연결·외래키가 유지되는지, 최신 행만 남는지 확인한다. 내부 sqlite_sequence를 업무 테이블 수에서 제외하며 기존 v6 DB는 변형 없이 거부한다. null/error 보존, 실패 진단, SEC 형식, 롤백·비누적 검증도 유지한다. 이번 v7 변경은 아직 실제 Windows에서 재실행하지 않았다.
 
-사내 Windows 11/Python 3.15.0 사용자가 제공한 오류 경로에서 applicability:null 및 선택 error 필드가 확인됐다. 처음 받은 부분 샘플에 없던 값/메타데이터를 지원하도록 수정한 것이다. 현재 보여 준 오류는 처음 10개이며 전체 28개를 아직 확인하지 않아 실제 입력 전체 성공을 보장하지 않는다.
+이전 v6는 [Windows CI](https://github.com/doukdoll/circuit-agent/actions/runs/38844322522)에서 PowerShell 5.1/7 각각 테스트 24개를 통과했다. 사용자는 사내 현재 파일의 구조 검사, 1,000체크포인트/2,572규칙/143SEC 적재, 선택 SEC의 2체크포인트/4규칙 조회와 v6 DDL을 확인했다. 이 결과는 v7을 회사 PC에서 실행한 결과가 아니다.
 
-v6는 Windows Server 2025/Python 3.12.10에서 PowerShell 5.1.26100.33438과 7.6.6 각각 테스트 24개 및 JSON 환경 검증 전체가 통과했다. [v6 Windows 실행 근거](https://github.com/doukdoll/circuit-agent/actions/runs/38844322522), 구현 72a84c7 기준. null 적용 범위와 error/analysis:null 항목이 포함된 가상 11체크포인트/35규칙/3SEC 파일을 사용했다. 회사 Windows 11/Python 3.15의 실제 전체 입력을 검증한 결과는 아니다. 회사 PC에서는 4장의 명령으로 다시 확인하고 실패하면 failed_step.inspection.issues 또는 별도 검사 명령의 path/reason을 확인한다.
+회사 PC에서는 4장의 명령으로 현재 JSON을 다시 확인한다. 실제 회사 데이터는 외부 CI에 전송하지 않는다. QCV/BOM 사실 추출·Gemini 판정 및 회사 PC 접근/DRM은 별도 범위다.
 
-실제 회사 데이터는 외부 CI로 전송하지 않는다. QCV/BOM 사실 추출·Gemini 판정 및 회사 PC 접근/DRM은 별도 범위다.
+## 11. 과거 기록: 사내 v5→v6 수동 수정
 
-## 11. 사내 v5 코드 수동 수정 기록
+이 절은 이전 문제의 수정 이력을 보존한다. 현재 v7을 새로 사용할 때는 위 실행 절차를 따르고, 사내 v6 코드에서 ID 정책만 바꿀 때는 다음 12장을 따른다.
+
 
 이번 오류의 확인 근거·미확인 사항·재현 결과는 [TS-007/TS-008](DEVELOPMENT_HISTORY.md#spdm-트러블슈팅-기록)에 기록했다. 다음은 사용자에게 안내한 **입력 거부와 SQL 저장 제약을 해결하는 최소 변경**이다. 원본 JSON의 null이나 error를 삭제하는 방법이 아니다.
 
@@ -354,4 +355,96 @@ if (Test-Path $SpdmCheck) {
 $SpdmDb = Join-Path $SpdmOutput "rules-v6.sqlite"
 ```
 
-이 최소 수정으로는 기존 테스트 파일과 환경 점검기의 출력 방식까지 바뀌지 않는다. v6 전체 배포에는 상세 진단 failed_step, source_error 조회 표시와 null/error 회귀 테스트도 포함한다. 실제 적용한 코드 범위와 실행한 테스트 개수를 함께 기록해야 한다.
+이 최소 수정으로는 기존 테스트 파일과 환경 점검기의 출력 방식까지 바뀌지 않는다. 당시 v6 전체 배포에는 상세 진단 failed_step, source_error 조회 표시와 null/error 회귀 테스트도 포함한다. 실제 적용한 코드 범위와 실행한 테스트 개수를 함께 기록해야 한다.
+
+
+## 12. 사내 v6→v7 AUTOINCREMENT 수동 수정
+
+sqlite_store.py 상단:
+
+기존:
+
+```python
+SCHEMA_VERSION = 6
+```
+
+수정:
+
+```python
+SCHEMA_VERSION = 7
+```
+
+checkpoints와 rules의 CREATE TABLE 안에 있는 다음 줄을 **두 곳 모두** 바꾼다.
+
+기존:
+
+```sql
+id INTEGER PRIMARY KEY,
+```
+
+수정:
+
+```sql
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+```
+
+외래키 checkpoint_db_id와 소스 식별자들은 수정하지 않는다. 기존 DB 테이블은 코드 수정만으로 바뀌지 않으므로 아래 새 DB에 같은 최신 전체 JSON을 적재한다. 기존 rules-v6.sqlite는 보존한다.
+
+```powershell
+$SpdmDb = Join-Path $SpdmOutput "rules-v7.sqlite"
+$SpdmImportReport = Join-Path $SpdmOutput ("import_v7_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".json")
+& $SpdmPython .\import_rules.py $SpdmInput --db $SpdmDb --report $SpdmImportReport --preview 3
+if ($LASTEXITCODE -ne 0) { throw "적재 실패. 콘솔과 보고서를 확인하세요." }
+$SpdmImport = Get-Content -LiteralPath $SpdmImportReport -Raw -Encoding UTF8 | ConvertFrom-Json
+$SpdmImport | Format-List status, stored_checkpoints, stored_rows
+```
+
+이후 query_rules.py도 같은 $SpdmDb를 사용한다. 새 DB의 첫 ID는 처음부터 시작하며 그 파일에 다시 적재할 때부터 기존 번호를 재사용하지 않는다. 새 JSON에서 빠진 규칙 제거와 최신 데이터만 유지하는 정책은 같다.
+
+test_json_rules.py에서 테이블 목록을 읽는 SQL 문자열도 바꾼다. 내부 sqlite_sequence를 업무 테이블로 세지 않기 위한 변경이다.
+
+기존:
+
+```python
+"SELECT name FROM sqlite_master WHERE type='table'"
+```
+
+수정:
+
+```python
+"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+```
+
+실제 DB 확인에서 rules AUTOINCREMENT가 False라면 두 ID 선언의 수정·파일 저장과 $SpdmDb가 가리키는 경로를 먼저 확인한다. 수정 전에 생성한 DB는 재적재만으로 DDL이 바뀌지 않으므로 기존 파일을 보존하고 아직 없는 새 파일명으로 생성한다. 버전 숫자가 7이라는 사실만으로 AUTOINCREMENT가 적용된 것은 아니다.
+
+위 최소 수동 수정만 하면 기존 테스트 개수는 자동으로 늘지 않는다. 배포 코드의 25개 테스트에는 ID 비재사용·부모 재연결 회귀 테스트와 v6 DB 보호 검사까지 포함되어 있다.
+
+
+## 13. 수동 수정 대신 v7 파일 교체 후 재적재
+
+사내 코드가 일부 수동 수정된 경우 ID 변경 파일만 교체하면 새 테스트가 기대하는 파서/진단 개선과 버전이 섞일 수 있다. spdm-v7-code-replacement.zip에는 다음 8개 코드/계약/테스트 파일만 있으며 실제 입력·DB·보고서는 없다.
+
+```text
+sqlite_store.py
+json_rules.py
+analysis.schema.json
+inspect_json_rules.py
+import_rules.py
+query_rules.py
+test_json_rules.py
+verify_environment.py
+```
+
+탐색기에서 ZIP을 풀고 8개 파일을 현재 SpdmJson/app/spdm_json 폴더에 같은 이름으로 덮어쓴다. 파일 목록은 PowerShell 실행 명령이 아니다. 기존 data/analysis.json과 local-output의 DB·보고서는 그대로 보존한다. 교체 후 해당 코드 폴더의 PowerShell에서 기존 경로 변수를 사용해 다음을 실행한다.
+
+```powershell
+$SpdmStamp = Get-Date -Format "yyyyMMdd_HHmmss_fff"
+$SpdmDb = Join-Path $SpdmOutput "rules-v7_$SpdmStamp.sqlite"
+$SpdmImportReport = Join-Path $SpdmOutput "import_v7_$SpdmStamp.json"
+& $SpdmPython -S .\import_rules.py $SpdmInput --db $SpdmDb --report $SpdmImportReport --preview 3
+if ($LASTEXITCODE -ne 0) { throw "적재 실패. 콘솔과 보고서를 확인하세요." }
+$SpdmImport = Get-Content -LiteralPath $SpdmImportReport -Raw -Encoding UTF8 | ConvertFrom-Json
+$SpdmImport | Format-List status, stored_checkpoints, stored_rows
+```
+
+새 DB를 만드는 이유는 기존 파일의 테이블 정의가 코드 교체/재적재만으로 바뀌지 않기 때문이다. 이후 조회도 새 $SpdmDb를 사용한다. 동일 입력이라면 앞서 확인한 1,000체크포인트/2,572규칙이 예상되며 실제 파일 변경 시 수치는 달라진다. 적용 확인은 실제 DB의 user_version=7 및 checkpoints/rules 양쪽 CREATE TABLE에 AUTOINCREMENT가 있는지 읽기 전용으로 검사한다. rules False 문제의 사내 수정 후 성공은 아직 확인 대기다.
