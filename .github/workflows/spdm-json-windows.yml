@@ -1,0 +1,63 @@
+name: Circuit Review SQLite on Windows
+
+"on":
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/spdm_import/**"
+      - ".github/workflows/spdm-json-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sqlite-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [pwsh, powershell]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Check blank schema using pwsh
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Output ("PowerShell " + $PSVersionTable.PSVersion.ToString())
+          $CircuitCheckPath = Join-Path $env:RUNNER_TEMP ("Circuit " + [char]0xD55C + [char]0xAE00 + " # schema")
+          New-Item -ItemType Directory -Path $CircuitCheckPath -Force | Out-Null
+          Get-ChildItem tools/spdm_import -File | Copy-Item -Destination $CircuitCheckPath
+          Set-Location $CircuitCheckPath
+          python -S -c "import sys, sqlite3; print(sys.version); print(sqlite3.sqlite_version)"
+          if ($LASTEXITCODE -ne 0) { throw "Python check failed" }
+          python -S -m unittest discover -s . -p "test_schema.py" -v
+          if ($LASTEXITCODE -ne 0) { throw "Blank schema checks failed" }
+          python -S init_db.py --db "blank.db"
+          if ($LASTEXITCODE -ne 0) { throw "Blank database initialization failed" }
+      - name: Check blank schema using powershell
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Output ("PowerShell " + $PSVersionTable.PSVersion.ToString())
+          $CircuitCheckPath = Join-Path $env:RUNNER_TEMP ("Circuit " + [char]0xD55C + [char]0xAE00 + " # schema")
+          New-Item -ItemType Directory -Path $CircuitCheckPath -Force | Out-Null
+          Get-ChildItem tools/spdm_import -File | Copy-Item -Destination $CircuitCheckPath
+          Set-Location $CircuitCheckPath
+          python -S -c "import sys, sqlite3; print(sys.version); print(sqlite3.sqlite_version)"
+          if ($LASTEXITCODE -ne 0) { throw "Python check failed" }
+          python -S -m unittest discover -s . -p "test_schema.py" -v
+          if ($LASTEXITCODE -ne 0) { throw "Blank schema checks failed" }
+          python -S init_db.py --db "blank.db"
+          if ($LASTEXITCODE -ne 0) { throw "Blank database initialization failed" }

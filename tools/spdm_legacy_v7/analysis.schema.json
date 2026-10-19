@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SPDM analysis array v1",
+  "type": "array",
+  "minItems": 1,
+  "items": {"$ref": "#/$defs/checkpoint"},
+  "$defs": {
+    "sec": {"type": "string", "minLength": 1},
+    "issue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "description"],
+      "properties": {"code": {"type": "string"}, "description": {"type": "string"}}
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["field", "quote"],
+      "properties": {"field": {"type": "string"}, "quote": {"type": "string"}}
+    },
+    "parameter": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "qualifier", "role", "unit", "value"],
+      "properties": {
+        "name": {"type": "string"},
+        "qualifier": {"type": ["string", "null"]},
+        "role": {"type": "string"},
+        "unit": {"type": ["string", "null"]},
+        "value": {}
+      }
+    },
+    "check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["applicability", "evidence", "level", "parameters", "required_design_facts", "requirement", "requirement_id", "sec_code", "target_description", "target_kind"],
+      "properties": {
+        "applicability": {"type": ["string", "null"]},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "level": {"type": "string"},
+        "parameters": {"type": "array", "items": {"$ref": "#/$defs/parameter"}},
+        "required_design_facts": {"type": "array", "items": {"type": "string"}},
+        "requirement": {"type": "string"},
+        "requirement_id": {"type": "string", "minLength": 1},
+        "sec_code": {"$ref": "#/$defs/sec"},
+        "target_description": {"type": "string"},
+        "target_kind": {"type": "string"}
+      }
+    },
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["analysis", "checkpoint_id", "row_uid", "sec_code", "status"],
+      "properties": {
+        "analysis": {
+          "type": ["object", "null"], "additionalProperties": false,
+          "required": ["checks", "issues", "summary"],
+          "properties": {
+            "checks": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+            "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+            "summary": {"type": "string"}
+          }
+        },
+        "checkpoint_id": {"type": "string", "minLength": 1},
+        "row_uid": {"type": "string", "minLength": 1},
+        "sec_code": {"$ref": "#/$defs/sec"},
+        "error": {},
+        "status": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

@@ -1,5 +1,7 @@
 # circuit-agent
 
+**Circuit Review SQLite 배포:** [ZIP 다운로드 및 실행 안내](dist/README.md) · [14테이블 소스](tools/spdm_import)
+
 공개 QCV 파일로 회로 연결을 파싱하고, 기본 Rule을 계산하여 JSON·HTML 보고서를 생성하는 Java 21 데모입니다.
 
 - [개발 및 실행 가이드](docs/DEVELOPMENT_GUIDE.md)
