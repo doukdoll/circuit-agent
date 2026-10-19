@@ -15,3 +15,5 @@
 현재 [소스](../tools/spdm_import)와 [이전 v7 보존 기록](../docs/SPDM_LEGACY_V7.md)을 확인할 수 있습니다. 이전 v7 DB는 자동 변환하지 않습니다. 최초 적재가 끝난 DB를 갱신하는 동기화 기능도 없습니다.
 
 ZIP의 SHA-256은 circuit-review-sqlite.zip.sha256에 기록합니다. ZIP 안의 SHA256SUMS.txt는 압축 해제한 개별 파일의 체크섬입니다. Python 설치 프로그램은 포함하지 않습니다.
+
+[PR #3](https://github.com/doukdoll/circuit-agent/pull/3) · [Windows 검증 결과](https://github.com/doukdoll/circuit-agent/actions/runs/39188935104): Python 3.10/3.12 × PowerShell 5.1/7 네 조합 각각 빈 스키마 테스트 10개 및 초기화 통과. 실제 CSV+JSON 적재와 GUI 직접 클릭은 미검증입니다.
