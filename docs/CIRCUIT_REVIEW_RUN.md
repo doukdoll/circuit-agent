@@ -2,6 +2,8 @@
 
 작성일: 2026-10-19
 
+갱신: 2026-10-20 — 공통 필드 비교/상세 오류 개선 및 실행 파일 정리.
+
 현재 코드는 `tools/spdm_import`입니다. 입력은 **실제 원본 23컬럼 CSV와 그 CSV 전체에 대응하는 분석 JSON**입니다. 빈 DB를 생성할 수 있으며, 실제 파일이 없을 때 데이터는 만들거나 채우지 않습니다. 기존 JSON 전용 v7 방식은 [보존 기록](SPDM_LEGACY_V7.md)에 남겼습니다.
 
 ## 1. 준비와 압축 해제
@@ -9,6 +11,8 @@
 1. Python 3.10 이상이 설치된 Windows PC를 준비합니다. GUI를 쓰려면 Python의 Tcl/Tk 및 IDLE 옵션이 필요합니다.
 2. circuit-review-sqlite.zip을 새 폴더에 모두 압축 풀기 합니다.
 3. 같은 폴더의 setup_rules.py, init_db.py, import_data.py, db_common.py, schema_sqlite.sql을 함께 둡니다.
+
+실행에 필요한 Python 파일은 네 개입니다. 개발 테스트는 저장소의 tests 폴더에 있고 예전 v7 실행 파일은 Git 이력으로만 보존합니다.
 
 SQLite는 Python에 포함되어 별도 설치하지 않습니다. SQLite 3.31 이상 및 JSON1 지원이 필요하며 프로그램에서 확인합니다. Python 설치 프로그램·실제 CSV/JSON·DB·보고서는 ZIP에 포함하지 않습니다. 설치 후 실행에는 인터넷·추가 패키지·DB 서버·Gemini·외부 API가 필요 없습니다.
 
@@ -47,6 +51,7 @@ adminno,seqno,sec_code,writer,comp_date,maker,maker_pn,adminno,seqno,Checkpoint,
 
 - CSV 인코딩은 UTF-8 또는 UTF-8 BOM입니다. Excel 파일은 입력이 아닙니다.
 - adminno 두 열, 부품 그룹별 공유 값, savefolder와 규칙 seqno의 관계를 검사합니다. SQL의 사번·관리번호 길이 및 허용 값 제한도 적용됩니다.
+- 공통 값 비교 시 선택 항목의 공백 빈값은 미제공으로, 수치가 같은 작성일/LDRC 확인일 문자열은 같은 날짜로 비교합니다. 날짜 비교는 반올림 없는 Decimal을 사용합니다. 비어 있지 않은 SEC·사번·제조사 등의 값은 그대로 비교하며 원본 CSV와 raw_row_json은 보존합니다.
 - JSON은 최상위 배열이며 checkpoint_id, row_uid, sec_code, status, analysis를 가집니다. analysis가 객체이면 summary/checks/issues를 가져야 합니다.
 - analysis:null과 선택 error도 원본 레코드 전체에 보존합니다. 세부 규칙이 없는 분석도 CSV 레코드와 대응해야 합니다.
 - CSV **레코드 순서**로 헤더는 1, 데이터는 2부터 셉니다. 셀 안 줄바꿈을 포함한 물리적 텍스트 줄 번호와 혼동하지 않습니다. 제공된 원래 Python importer와 같은 기준입니다.
@@ -79,3 +84,13 @@ init_db.py로 DB 식별과 형식 버전을 기록하고 전체 정의를 검사
 게시한 구현 37f7b2a의 [Windows CI](https://github.com/doukdoll/circuit-agent/actions/runs/39188935104)는 Windows Server 2025에서 Python 3.10.11/SQLite 3.40.1 및 Python 3.12.10/SQLite 3.49.1을 각각 PowerShell 5.1.26100.33438/7.6.6으로 실행하여 네 조합 모두 통과했습니다. 각 조합의 빈 스키마 테스트 10개와 CLI 초기화를 확인했습니다. 합성 CSV/JSON이나 업무 레코드를 만들지 않았으며 실제 GUI 클릭이나 실제 CSV+JSON 적재 성공을 의미하지 않습니다.
 
 기존 v7의 테스트 34개 및 과거 Windows CI는 보존된 이전 코드의 결과이며 새 14테이블 버전의 검증 결과가 아닙니다. 후속 회로 검증 애플리케이션은 부품 그룹 선택, 사실/파일 소유 관계 및 검증 당시 규칙 버전 보존 정책을 별도로 구현해야 합니다.
+
+2026-10-20의 공통 필드 비교/상세 오류 수정은 Linux에서 총 15개 검사(기존 10개+스칼라 비교 5개)를 통과했습니다. 합성 CSV/JSON이나 업무 레코드를 만들지 않았습니다. 위 Windows CI는 수정 전 버전의 근거이며 새 비교 코드의 실제 Windows 실행이나 원본 CSV 31번 오류 해소를 확인한 결과가 아닙니다.
+
+## 8. CSV 공통 필드 오류가 날 때
+
+최신 import_data.py로 다시 실행하면 `Inconsistent shared fields for part` 아래에 최초/현재 레코드 번호, 다른 컬럼, 두 값이 표시됩니다. 부품 그룹은 왼쪽 adminno+seqno이며 오른쪽 규칙 seqno가 달라지는 것은 정상입니다.
+
+공백만 있는 선택 항목이나 수치가 같은 날짜의 표기 차이는 처리합니다. 그 밖의 값이 다르면 기존처럼 적재를 취소합니다. 실제 LDRC가 체크포인트마다 다른 것으로 확인될 때 저장 구조를 별도로 검토하며, 현재는 LDRC 값을 임의로 하나로 합치지 않습니다.
+
+이 수정은 테이블 구조를 바꾸지 않아 기존 실패 후 남은 빈 Circuit Review DB를 다시 선택할 수 있습니다. 이미 데이터가 있는 DB의 재적재는 기존 정책대로 거부합니다. 원본 CSV나 빈 DB를 먼저 삭제할 필요가 없습니다.

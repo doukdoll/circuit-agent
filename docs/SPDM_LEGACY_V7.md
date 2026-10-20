@@ -16,7 +16,9 @@
 
 ## 보존 위치와 기존 근거
 
-기존 Python 코드·계약·테스트·실행기는 [tools/spdm_legacy_v7](../tools/spdm_legacy_v7)에 이동해 보존했습니다. 이동 전 미커밋이던 Python 실행기와 34개 테스트도 함께 보존했습니다. 이 코드의 테스트를 새 버전 검증으로 재실행하지 않았습니다.
+기존 Python 코드·계약·테스트·실행기는 처음에 tools/spdm_legacy_v7로 이동해 보존했습니다. 2026-10-20 사용자의 불필요한 Python 파일 정리 요청에 따라 현재 파일 트리에서는 이전 실행 파일 8개와 이전 계약 JSON을 제거하고 안내 문서만 남겼습니다.
+
+원본은 [커밋 118e3cd의 보존 폴더](https://github.com/doukdoll/circuit-agent/tree/118e3cd8e563b882e080798b17526be1e078196a/tools/spdm_legacy_v7)에서 그대로 확인할 수 있습니다. 당시 Python 실행기와 34개 테스트도 같은 Git 이력에 있습니다. 이 코드를 새 버전 검증으로 재실행하지 않았습니다.
 
 이전 [JSON 실행 안내](SPDM_JSON_RUN.md), [Python 실행 안내](SPDM_PYTHON_START.md), [팀 배포 안내](SPDM_TEAM_START.md), 개발 이력의 Windows/사내 확인 기록은 당시 버전의 기록입니다. 핵심 v7 구현 3b27940의 Windows CI 25개와 이후 Python 실행기의 Linux 34개 결과를 구분합니다.
 

@@ -10,6 +10,7 @@ import argparse
 from collections import Counter
 from contextlib import closing
 import csv
+from decimal import Decimal, InvalidOperation
 import json
 import math
 from pathlib import Path
@@ -30,10 +31,49 @@ ALLOWED_ARCHETYPES = {
     'power_rail', 'decap', 'pull_up_down', 'unused_pin',
     'power_sequencing', 'signal_integrity', 'other',
 }
+SHARED_PART_COLUMNS = (2, 3, 4, 5, 6, 18, 19, 20, 21, 22)
+OPTIONAL_SHARED_COLUMNS = frozenset((5, 6, 18, 19, 20, 21, 22))
+SHARED_DATE_COLUMNS = frozenset((4, 20))
 
 
 def optional(value):
     return None if value is None or value == '' else value
+
+
+def optional_shared_text(value):
+    """A whitespace-only optional source cell denotes missing information."""
+    return None if value is None or not value.strip() else value
+
+
+def normalized_shared_value(column, value):
+    """Compare missing values and equal serial dates without altering raw CSV."""
+    if column in OPTIONAL_SHARED_COLUMNS and optional_shared_text(value) is None:
+        return None
+    if column in SHARED_DATE_COLUMNS:
+        try:
+            numeric = Decimal(value)
+            if numeric.is_finite():
+                return numeric
+        except InvalidOperation:
+            pass
+    # Identifiers and nonempty text remain exact, including case and spaces.
+    return value
+
+
+def describe_shared_difference(column, previous, current):
+    def display(value):
+        text = repr(value)
+        return text if len(text) <= 160 else text[:157] + '...'
+
+    letter = chr(ord('A') + column)
+    return (f'{letter}열 {EXPECTED_HEADERS[column]}: '
+            f'이전={display(previous)} / 현재={display(current)}')
+
+
+def shared_part_error(first_row_no, row_no, differences):
+    return ('Inconsistent shared fields for part\n'
+            f'비교 레코드: 최초 {first_row_no}번 / 현재 {row_no}번 (헤더=1)\n'
+            '다른 컬럼:\n' + '\n'.join(differences))
 
 
 def encode_json(value):
@@ -123,10 +163,18 @@ def import_csv(conn, path):
             if not row[2].strip():
                 raise ValueError('sec_code must be nonempty')
             part_key = (row[0], part_seq)
-            common = (row[2], row[3], row[4], row[5], row[6], *row[18:23])
-            if part_key in fields_by_key and fields_by_key[part_key] != common:
-                raise ValueError('Inconsistent shared fields for part')
-            fields_by_key[part_key] = common
+            common = tuple(row[column] for column in SHARED_PART_COLUMNS)
+            if part_key in fields_by_key:
+                first_row_no, first_common = fields_by_key[part_key]
+                differences = [
+                    describe_shared_difference(column, previous, current)
+                    for column, previous, current in zip(SHARED_PART_COLUMNS, first_common, common)
+                    if normalized_shared_value(column, previous) != normalized_shared_value(column, current)
+                ]
+                if differences:
+                    raise ValueError(shared_part_error(first_row_no, row_no, differences))
+            else:
+                fields_by_key[part_key] = (row_no, common)
             if part_key not in parts_by_key:
                 cursor = conn.execute('''
                     INSERT INTO parts (
@@ -134,8 +182,8 @@ def import_csv(conn, path):
                         maker, maker_pn, ldrc_check_tp, ldrc_regist_tp,
                         ldrc_check_date_serial, ldrc_checker_emp_no, ldrc_id
                     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                ''', (row[0], part_seq, row[2], row[3], row[4], optional(row[5]), optional(row[6]),
-                      *[optional(value) for value in row[18:23]]))
+                ''', (row[0], part_seq, row[2], row[3], row[4], optional_shared_text(row[5]),
+                      optional_shared_text(row[6]), *[optional_shared_text(value) for value in row[18:23]]))
                 parts_by_key[part_key] = cursor.lastrowid
             cursor = conn.execute('''
                 INSERT INTO checkpoints (

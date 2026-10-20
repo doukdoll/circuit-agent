@@ -5,6 +5,7 @@ name: Circuit Review SQLite on Windows
     branches: [main]
     paths:
       - "tools/spdm_import/**"
+      - "tests/test_spdm_schema.py"
       - ".github/workflows/spdm-json-windows.yml"
   workflow_dispatch:
 
@@ -36,10 +37,12 @@ jobs:
           $CircuitCheckPath = Join-Path $env:RUNNER_TEMP ("Circuit " + [char]0xD55C + [char]0xAE00 + " # schema")
           New-Item -ItemType Directory -Path $CircuitCheckPath -Force | Out-Null
           Get-ChildItem tools/spdm_import -File | Copy-Item -Destination $CircuitCheckPath
+          $CircuitSuitePath = Join-Path $env:GITHUB_WORKSPACE "tests"
+          $env:CIRCUIT_REVIEW_APP_DIR = $CircuitCheckPath
           Set-Location $CircuitCheckPath
           python -S -c "import sys, sqlite3; print(sys.version); print(sqlite3.sqlite_version)"
           if ($LASTEXITCODE -ne 0) { throw "Python check failed" }
-          python -S -m unittest discover -s . -p "test_schema.py" -v
+          python -S -m unittest discover -s $CircuitSuitePath -p "test_spdm_schema.py" -v
           if ($LASTEXITCODE -ne 0) { throw "Blank schema checks failed" }
           python -S init_db.py --db "blank.db"
           if ($LASTEXITCODE -ne 0) { throw "Blank database initialization failed" }
@@ -54,10 +57,12 @@ jobs:
           $CircuitCheckPath = Join-Path $env:RUNNER_TEMP ("Circuit " + [char]0xD55C + [char]0xAE00 + " # schema")
           New-Item -ItemType Directory -Path $CircuitCheckPath -Force | Out-Null
           Get-ChildItem tools/spdm_import -File | Copy-Item -Destination $CircuitCheckPath
+          $CircuitSuitePath = Join-Path $env:GITHUB_WORKSPACE "tests"
+          $env:CIRCUIT_REVIEW_APP_DIR = $CircuitCheckPath
           Set-Location $CircuitCheckPath
           python -S -c "import sys, sqlite3; print(sys.version); print(sqlite3.sqlite_version)"
           if ($LASTEXITCODE -ne 0) { throw "Python check failed" }
-          python -S -m unittest discover -s . -p "test_schema.py" -v
+          python -S -m unittest discover -s $CircuitSuitePath -p "test_spdm_schema.py" -v
           if ($LASTEXITCODE -ne 0) { throw "Blank schema checks failed" }
           python -S init_db.py --db "blank.db"
           if ($LASTEXITCODE -ne 0) { throw "Blank database initialization failed" }

@@ -16,4 +16,6 @@
 
 ZIP의 SHA-256은 circuit-review-sqlite.zip.sha256에 기록합니다. ZIP 안의 SHA256SUMS.txt는 압축 해제한 개별 파일의 체크섬입니다. Python 설치 프로그램은 포함하지 않습니다.
 
-[PR #3](https://github.com/doukdoll/circuit-agent/pull/3) · [Windows 검증 결과](https://github.com/doukdoll/circuit-agent/actions/runs/39188935104): Python 3.10/3.12 × PowerShell 5.1/7 네 조합 각각 빈 스키마 테스트 10개 및 초기화 통과. 실제 CSV+JSON 적재와 GUI 직접 클릭은 미검증입니다.
+2026-10-20 수정본은 공통 필드의 빈 선택 항목/동일 날짜 표기 비교를 보완하고, 실제 불일치의 비교 레코드·컬럼·값을 표시합니다. 실행 폴더는 네 Python 파일만 남겼으며 이전 실행 파일은 Git 이력으로 보존합니다. 위 다운로드는 이 브랜치의 수정 ZIP입니다. 새 수정의 Linux 검사 15개를 통과했지만 실제 원본 CSV 31번과 새 Windows 실행은 아직 확인하지 않았습니다.
+
+이전 게시 이력인 [PR #3](https://github.com/doukdoll/circuit-agent/pull/3)은 사용자 요청으로 닫힌 상태이며 다시 열지 않습니다. [이전 코드의 Windows 검증 결과](https://github.com/doukdoll/circuit-agent/actions/runs/39188935104): Python 3.10/3.12 × PowerShell 5.1/7 네 조합 각각 빈 스키마 테스트 10개 및 초기화 통과. 실제 CSV+JSON 적재와 GUI 직접 클릭은 미검증입니다.

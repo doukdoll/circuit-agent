@@ -2,7 +2,9 @@
 
 현재 Rule DB는 사용자가 제공한 **14테이블 SQLite / 실제 CSV+분석 JSON 최초 적재** 방식입니다. [현재 실행 안내](CIRCUIT_REVIEW_RUN.md)를 따릅니다. `tools/spdm_import/setup_rules.py`를 Python으로 실행하면 빈 DB만 만들거나 실제 CSV/JSON을 선택해 최초 적재할 수 있습니다. 별도 SQLite 설치·서버·외부 API가 필요 없습니다.
 
-이전 JSON 전용 v7 코드와 요구는 [보존 기록](SPDM_LEGACY_V7.md) 및 tools/spdm_legacy_v7에 남겼습니다. 이전 DB를 새 DB로 자동 변환하거나 최신 규칙 교체 정책을 적용하지 않습니다. 가상 데이터를 생성하지 않으며 실제 파일은 사내에서 별도로 준비합니다. 아래 Java QCV 데모와의 자동 연동은 별도 단계입니다.
+이전 JSON 전용 v7 요구와 원본 코드 위치는 [보존 기록](SPDM_LEGACY_V7.md)에 남겼습니다. 중복된 이전 Python 파일은 제거하고 Git 이력으로 보존합니다. 현재 실행 폴더에는 setup_rules.py/import_data.py/init_db.py/db_common.py 네 개만 있고 테스트는 tests/test_spdm_schema.py로 분리합니다. 이전 DB를 새 DB로 자동 변환하거나 최신 규칙 교체 정책을 적용하지 않습니다. 가상 데이터를 생성하지 않으며 실제 파일은 사내에서 별도로 준비합니다. 아래 Java QCV 데모와의 자동 연동은 별도 단계입니다.
+
+CSV 부품 공통 필드 오류는 비교 레코드·컬럼·이전/현재 값을 표시합니다. 선택 항목의 공백 빈값과 수치가 같은 날짜 문자열만 비교 시 동등하게 취급하고, 원본 CSV/각 행 JSON은 보존합니다. 진짜 값 차이는 계속 전체 롤백하며 LDRC 저장 단위는 아직 변경하지 않습니다.
 
 공개 샘플을 읽어 부품·핀·넷을 구성하고, TPS56C230의 명목 FB 분압 Rule 하나를 계산한 뒤 JSON·HTML 보고서를 만듭니다. [최신 MVP 방향](MVP_REQUIREMENTS.md)을 위한 실행 가능한 출발점입니다. [샘플 안내](../samples/README.md)에 원본·직접 작성한 회로·기대 결과·개발용 허용 기준을 구분했습니다.
 

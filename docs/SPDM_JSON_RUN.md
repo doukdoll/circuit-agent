@@ -1,6 +1,6 @@
 # 전처리 analysis.json → SQLite 규칙 DB 실행 방법
 
-> 이전 JSON 전용 v7의 보존 문서입니다. 코드는 tools/spdm_legacy_v7에 있으며 현재 버전은 [CSV+JSON/14테이블 안내](CIRCUIT_REVIEW_RUN.md)를 따릅니다.
+> 이전 JSON 전용 v7의 보존 문서입니다. 원본 코드는 [보존 기록의 Git 링크](SPDM_LEGACY_V7.md)에 있으며 현재 버전은 [CSV+JSON/14테이블 안내](CIRCUIT_REVIEW_RUN.md)를 따릅니다.
 
 작성일: 2026-10-15
 

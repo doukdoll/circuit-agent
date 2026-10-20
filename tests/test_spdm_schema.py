@@ -1,14 +1,21 @@
-"""Blank-schema checks only: no CSV/JSON fixtures or synthetic data records."""
+"""Blank schema and scalar comparison checks; no CSV/JSON records generated."""
 
 from contextlib import closing
 from pathlib import Path
+import os
 import sqlite3
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+APP_DIR = Path(os.environ.get('CIRCUIT_REVIEW_APP_DIR',
+                             Path(__file__).resolve().parents[1] / 'tools' / 'spdm_import')).resolve()
+sys.path.insert(0, str(APP_DIR))
+
 from db_common import connect_database, ensure_empty, objects, validate_schema
-from import_data import import_files
+from import_data import (describe_shared_difference, import_files, normalized_shared_value,
+                         optional_shared_text, shared_part_error)
 from init_db import initialize_database
 from setup_rules import run_setup
 
@@ -100,7 +107,7 @@ class BlankSchemaTest(unittest.TestCase):
 
     def test_query_examples_execute_read_only_on_blank_schema(self):
         initialize_database(self.db)
-        sql_path = Path(__file__).with_name('queries_sqlite.sql')
+        sql_path = APP_DIR / 'queries_sqlite.sql'
         with closing(connect_database(self.db, read_only=True)) as con:
             statement = ''
             count = 0
@@ -113,6 +120,39 @@ class BlankSchemaTest(unittest.TestCase):
             self.assertEqual(6, count)
             ensure_empty(con)
 
+
+class SharedComparisonTest(unittest.TestCase):
+    def test_equal_serial_date_spellings_compare_equal_without_rewriting(self):
+        original = ' 1.000 '
+        for column in (4, 20):
+            self.assertEqual(normalized_shared_value(column, original), normalized_shared_value(column, '1'))
+        self.assertEqual(' 1.000 ', original)
+
+    def test_different_dates_are_not_rounded_to_the_same_value(self):
+        self.assertNotEqual(normalized_shared_value(4, '1.00000000000000001'),
+                            normalized_shared_value(4, '1.00000000000000002'))
+
+    def test_optional_missing_text_maps_to_sql_null_consistently(self):
+        for column in (5, 6, 18, 19, 20, 21, 22):
+            for text in ('', ' ', '\t', '\u00a0'):
+                with self.subTest(column=column, text=repr(text)):
+                    self.assertIsNone(normalized_shared_value(column, text))
+                    self.assertIsNone(optional_shared_text(text))
+
+    def test_identifiers_and_nonempty_labels_remain_exact(self):
+        for column in (2, 3, 5, 6, 18, 19, 21, 22):
+            self.assertNotEqual(normalized_shared_value(column, 'value'),
+                                normalized_shared_value(column, 'value '))
+            self.assertNotEqual(normalized_shared_value(column, 'Value'),
+                                normalized_shared_value(column, 'value'))
+        self.assertEqual(' value ', optional_shared_text(' value '))
+
+    def test_error_identifies_rows_columns_and_invisible_characters(self):
+        detail = describe_shared_difference(18, '', '\t')
+        message = shared_part_error(2, 31, [detail])
+        self.assertIn('최초 2번 / 현재 31번', message)
+        self.assertIn('S열 ldrc_check_tp', message)
+        self.assertIn("현재='\\t'", message)
 
 if __name__ == '__main__':
     unittest.main()
