@@ -1,6 +1,6 @@
 # Circuit Review: SQLite 스키마와 실제 데이터 최초 적재
 
-현재 버전은 사용자가 제공한 14개 테이블·2개 트리거 SQL을 기준으로 하며, 형식 버전 2에서 LDRC 5개 필드를 체크포인트별로 저장하도록 변경했습니다. Python 3.10 이상, SQLite 3.31 이상과 JSON1을 사용하며 추가 패키지·외부 API·서버가 필요 없습니다. **가상/모의 데이터 생성이나 자동 샘플 적재 기능은 없습니다.**
+현재 버전은 사용자가 제공한 14개 테이블·2개 트리거 SQL을 기준으로 하며, 형식 버전 3에서 savefolder를 원본 TEXT로 저장합니다. 버전 2의 LDRC 5개 필드 체크포인트별 저장도 유지합니다. Python 3.10 이상, SQLite 3.31 이상과 JSON1을 사용하며 추가 패키지·외부 API·서버가 필요 없습니다. **가상/모의 데이터 생성이나 자동 샘플 적재 기능은 없습니다.**
 
 ## 파일
 
@@ -20,8 +20,8 @@
 PowerShell 명령을 입력하지 않으려면 setup_rules.py를 Python으로 실행합니다. 첫 창에서 예를 누르면 CSV와 JSON을 골라 최초 적재하고, 아니오를 누르면 빈 DB만 만듭니다. 기존 데이터가 있는 DB를 갱신하거나 덮어쓰지 않습니다.
 
 ```powershell
-python init_db.py --db circuit_review_v2.db
-python import_data.py --db circuit_review_v2.db --csv checkpoints.csv --analysis analysis.json
+python init_db.py --db circuit_review_v3.db
+python import_data.py --db circuit_review_v3.db --csv checkpoints.csv --analysis analysis.json
 ```
 
 CSV와 JSON은 사내 실제 파일을 별도로 준비합니다. 입력을 생성하는 명령은 없습니다. 자세한 설치·실행·제약은 [현재 실행 안내](../../docs/CIRCUIT_REVIEW_RUN.md)를 따릅니다.
@@ -29,6 +29,7 @@ CSV와 JSON은 사내 실제 파일을 별도로 준비합니다. 입력을 생�
 ## 입력 및 저장 정책
 
 - CSV는 UTF-8 또는 UTF-8 BOM이며, 반복되는 adminno/seqno 이름을 포함한 23개 헤더와 순서가 같아야 합니다. 원본 식별자와 날짜 문자열을 보존합니다.
+- 앞 seqno는 parts.part_seqno, 뒤 seqno는 checkpoints.checkpoint_seqno입니다. O열 savefolder는 일반 TEXT에 원본 그대로 저장합니다. seqno+L을 강제하거나 원문을 정규화하지 않으며 빈 문자열/공백도 보존합니다.
 - JSON은 checkpoint_id/row_uid/sec_code/status/analysis를 가진 배열입니다. analysis는 summary/checks/issues를 가지거나 null일 수 있습니다.
 - 행 번호는 제공된 importer의 enumerate(reader, start=2)와 같은 **CSV 레코드 순서**입니다. 헤더가 1, 첫 데이터가 2이며 셀 내부 줄바꿈은 새 레코드가 아닙니다. 물리적 텍스트 줄 번호와 다를 수 있습니다.
 - row:숫자 또는 row_uid의 마지막 :숫자로 매칭합니다. 둘 다 해석 가능하면 같아야 하며 파일명 접두사는 달라도 됩니다. 양쪽 SEC는 원문 그대로 같아야 합니다.
@@ -43,7 +44,7 @@ CSV와 JSON은 사내 실제 파일을 별도로 준비합니다. 입력을 생�
 
 ## 스키마 및 이전 버전
 
-init_db.py는 DB 식별(application_id)과 별도 schema version=2를 SQLite 헤더에 기록합니다. 이는 이전 JSON 전용 v7과 **다른 DB 형식**입니다. 이전 Circuit Review 버전 1은 LDRC가 parts에 있어 새 코드와 호환되지 않습니다. 빈 DB여도 자동 변환하지 않으므로 전체 배포본을 새 폴더에 풀고 새 circuit_review_v2.db로 재적재합니다. 임의의 기존 DB 또는 바뀐 스키마도 자동 수리하지 않습니다. 같은 형식 버전 2의 빈 DB 재초기화는 그대로 두며 데이터가 있는 DB는 거부합니다.
+init_db.py는 DB 식별(application_id)과 별도 schema version=3을 SQLite 헤더에 기록합니다. 이는 이전 JSON 전용 v7과 **다른 DB 형식**입니다. 이전 Circuit Review 버전 1/2는 새 코드와 호환되지 않습니다. 빈 DB여도 자동 변환하지 않으므로 전체 배포본을 새 폴더에 풀고 새 circuit_review_v3.db로 재적재합니다. 임의의 기존 DB 또는 바뀐 스키마도 자동 수리하지 않습니다. 같은 형식 버전 3의 빈 DB 재초기화는 그대로 두며 데이터가 있는 DB는 거부합니다.
 
 SQL은 제공된 INTEGER PRIMARY KEY 정의를 따릅니다. SQLite가 번호를 자동 부여하지만 예전 v7의 AUTOINCREMENT 비재사용 정책은 이번 스키마에 추가하지 않았습니다. 모든 애플리케이션 연결에서 PRAGMA foreign_keys=ON을 설정해야 합니다.
 
@@ -53,6 +54,6 @@ SQL은 제공된 INTEGER PRIMARY KEY 정의를 따릅니다. SQLite가 번호를
 
 빈 DB 초기화·14개 빈 테이블·두 트리거 정의·FK 설정·DDL 실패 롤백·기존/변조 DB 거부·읽기 전용 SQL·GUI 빈 DB 생성의 10개 검사를 Linux에서 통과했습니다. 레코드나 가상 CSV/JSON을 생성하지 않았습니다. 실제 SPDM CSV가 없어 CSV+JSON 전체 적재와 실제 Windows GUI 클릭은 검증하지 않았습니다.
 
-2026-10-20 형식 버전 2는 Linux에서 총 18개 테스트를 통과했습니다. `python -S -m unittest discover -s tests -p "test_spdm_schema.py" -v`로 검사합니다. LDRC 컬럼 이동, 실제 적재 SQL의 EXPLAIN 컴파일, 이전 형식 DB 보호를 포함하며 업무 레코드를 생성하지 않습니다. 실제 SPDM 전체 CSV+JSON이 제공되지 않아 전체 입력의 적재 성공과 이번 수정의 실제 Windows 실행은 아직 미확인입니다.
+2026-10-20 형식 버전 3은 Linux에서 총 18개 테스트를 통과했습니다. `python -S -m unittest discover -s tests -p "test_spdm_schema.py" -v`로 검사합니다. savefolder 일반 TEXT 컬럼, LDRC 위치, 실제 적재 SQL의 EXPLAIN 컴파일, 이전 형식 1/2의 DB 보호를 포함하며 업무 레코드를 생성하지 않습니다. 실제 SPDM 전체 CSV+JSON이 제공되지 않아 전체 입력의 적재 성공과 이번 수정의 실제 Windows 실행은 아직 미확인입니다.
 
 제공된 트리거는 검증 결과의 run/instance 설계와 부품 소유 규칙을 INSERT/해당 FK UPDATE 시 확인합니다. 관측 사실의 required_fact/파일 소유 관계 및 참조 부모 변경까지 모두 보호하는 스키마는 아닙니다. 후속 검증 애플리케이션에서 이를 확인해야 합니다.

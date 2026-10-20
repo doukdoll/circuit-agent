@@ -1,5 +1,6 @@
--- Circuit-review AI: SQLite 3.31+ with JSON1; DB format version 2.
+-- Circuit-review AI: SQLite 3.31+ with JSON1; DB format version 3.
 -- LDRC metadata belongs to each checkpoint, not the shared part.
+-- savefolder preserves source CSV column O independently of checkpoint_seqno.
 -- PRAGMA foreign_keys must be enabled on every application connection.
 PRAGMA foreign_keys = ON;
 
@@ -26,7 +27,7 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     design_template_text TEXT,
     reference_document TEXT,
     input_emp_no TEXT NOT NULL CHECK (length(input_emp_no) = 8 AND input_emp_no NOT GLOB '*[^0-9]*'),
-    savefolder TEXT GENERATED ALWAYS AS (CAST(checkpoint_seqno AS TEXT) || 'L') STORED,
+    savefolder TEXT,
     ref_date_serial TEXT NOT NULL,
     category TEXT CHECK (category IS NULL OR category IN ('a', 'b', 'c')),
     pin_info TEXT,

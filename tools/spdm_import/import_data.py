@@ -159,8 +159,6 @@ def import_csv(conn, path):
     for row_no, row in read_csv(path):
         try:
             part_seq, check_seq = int(row[1]), int(row[8])
-            if row[14] != f'{check_seq}L':
-                raise ValueError('savefolder mismatch')
             if not row[2].strip():
                 raise ValueError('sec_code must be nonempty')
             part_key = (row[0], part_seq)
@@ -188,14 +186,14 @@ def import_csv(conn, path):
             cursor = conn.execute('''
                 INSERT INTO checkpoints (
                     part_id, checkpoint_seqno, checkpoint_text, specification_text,
-                    design_template_text, reference_document, input_emp_no,
+                    design_template_text, reference_document, input_emp_no, savefolder,
                     ref_date_serial, category, pin_info,
                     ldrc_check_tp, ldrc_regist_tp, ldrc_check_date_serial,
                     ldrc_checker_emp_no, ldrc_id, external_checkpoint_id,
                     source_row_uid, source_file_name, source_row_no, raw_row_json
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (parts_by_key[part_key], check_seq, optional(row[9]), optional(row[10]), optional(row[11]),
-                  optional(row[12]), row[13], row[15], optional(row[16]), optional(row[17]),
+                  optional(row[12]), row[13], row[14], row[15], optional(row[16]), optional(row[17]),
                   *[optional_shared_text(value) for value in row[18:23]],
                   f'row:{row_no}', f'csv:{path.name}:{row_no}', path.name, row_no, encode_json(row)))
             checkpoints_by_row[row_no] = (cursor.lastrowid, row)

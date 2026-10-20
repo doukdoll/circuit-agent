@@ -511,3 +511,22 @@ CRLF 사본 SHA-256:
 - **검증:** Linux/Python 3.12에서 `python -S -m unittest discover -s tests -p 'test_spdm_schema.py' -v` 총 18개 통과. LDRC 5개 컬럼의 checkpoints 소유, 형식 버전 2, 이전 버전 DB 보호, 실제 importer의 9개 INSERT/UPDATE SQL을 새 스키마에서 EXPLAIN으로 컴파일 확인. 기존 빈 스키마/FK/트리거/DDL 롤백/읽기 쿼리/스칼라 비교 검사도 통과. 합성 CSV/JSON·업무 레코드는 생성하지 않음.
 - **배포본 확인:** 코드·SQL·문서·VERSION·체크섬의 10개 파일로 ZIP 갱신. 한글/공백/# 경로의 pip 없는 venv에 풀어 패키지 코드로 동일 18개 검사, CLI 버전 2/14테이블 0행, 파일별 체크섬/소스 바이트 일치, Python 3.10 문법을 확인. 이전 커밋의 실제 버전 1 SQL로 만든 빈 DB를 새 CLI가 거부하고 바이트를 유지하는 것도 별도 확인. 로컬 근거는 output/spdm/ldrc-checkpoint-validation/checks.json이며 게시하지 않음.
 - **한계/게시 범위:** 실제 사내 CSV+JSON 전체 파일은 없어 해당 입력의 전체 적재 성공은 사용자 환경 확인 대기. 이번 수정의 Windows 실행/GUI 클릭 성공으로 표현하지 않으며 과거 Windows CI를 재사용하지 않음. 회사 원본 값·식별자·DB·보고서를 제외하고 수정 코드·회귀 검사·문서·ZIP만 현재 브랜치에 일반 푸시하는 범위.
+
+### TS-013 — CSV 481번 레코드의 savefolder 불일치
+
+- **사용자 증상:** LDRC 수정본 안내 후 실제 적재에서 `CSV row 481: savefolder mismatch`를 보고. 실제 481번 레코드의 I열/O열 값이나 전체 입력 파일은 제공되지 않음.
+- **확인된 검사/원인 범위:** importer는 오른쪽 I열 규칙 seqno를 정수로 읽고 O열 savefolder가 그 정수의 10진 문자열+L과 정확히 같은지 검사함. 현재 SQL의 checkpoints.savefolder 역시 checkpoint_seqno로부터 생성하는 STORED 컬럼. 따라서 두 값이 현재 식과 다르다는 점은 확인되지만 공백/다른 표기/실제 별도 폴더값 중 무엇인지는 미확정. B열 부품 그룹 seqno와 혼동하지 않음.
+- **추가 확인/대안:** 해당 CSV 레코드의 I열 원문과 O열 원문을 확인해야 함. 단순 표기 차이라면 허용 범위를 정의하고 원문 보존을 유지하며 처리할 수 있음. savefolder가 실제로 독립적인 원본 값이라면 generated 컬럼을 일반 TEXT로 바꾸고 importer에서 각 행의 원문을 저장하는 방안을 검토. 검사만 지우면 구조화 컬럼은 계속 자동 생성되어 원본과 다른 값이 저장될 수 있으므로 무조건 우회하지 않음.
+- **상태/검증:** 원인 분석과 기록만 수행. 새 런타임·SQL·ZIP·DB 변경이나 테스트 재실행, 커밋·푸시는 하지 않음. 적재는 전체 롤백 경로이며 앞선 레코드가 DB에 부분 저장됐다는 뜻이 아님. 실제 사내 DB 상태와 전체 적재 성공은 직접 확인하지 않음.
+
+- **실제 두 값 확인:** 사용자가 I열 규칙 번호와 O열 폴더값을 추가 제공했으며, 폴더의 숫자 부분이 규칙 번호와 다름을 확인. 단순 공백/동일 숫자 표기 문제가 아니고 현재의 seqno+L 가정에 맞지 않는 실제 값 조합임. 다만 어느 원본 값이 업무적으로 잘못됐는지, 폴더가 별도 규칙으로 부여되는지는 이 한 쌍만으로 확정하지 않음. 원본을 유지해 적재하려면 규칙 번호는 그대로 두고 savefolder를 원본 TEXT로 저장하도록 SQL/importer를 함께 바꾸는 방안을 설명. 이번 후속도 설명·기록만이며 코드는 수정하지 않음.
+
+### 2026-10-20 — savefolder의 원본 저장 및 강제 일치 검사 제거
+
+- **요청/권한:** 사용자가 두 seqno와 savefolder의 의미를 확인한 뒤 오류 수정·커밋·푸시를 명시적으로 요청. 기존 feat/circuit-review-sqlite와 TS-013의 미커밋 원인 분석 기록을 보존. 닫힌 PR #3은 재오픈하지 않고 새 PR 생성·main 병합·강제 푸시도 하지 않음.
+- **원인/최종 변경:** 실제 CSV에서 규칙 번호와 폴더값의 숫자가 다를 수 있는데 기존 코드와 generated 컬럼이 seqno+L을 강제했음. savefolder를 일반 TEXT 컬럼으로 바꾸고 importer의 일치 검사를 제거한 뒤 O열 원문을 INSERT에 직접 바인딩. 규칙 seqno는 그대로 유지하고 빈 문자열/공백도 원문대로 보존. 원본 값의 업무상 옳고 그름이나 폴더의 실제 용도는 추정하지 않음.
+- **유지 범위:** LDRC의 체크포인트별 저장, A adminno+B seqno 부품 키, C~G 공통 값 검사, SEC 원문 일치, 전체 CSV+JSON 대응/근거 인용, SQL/FK 제약 및 오류 시 전체 롤백 유지. 원본 CSV/raw_row_json을 변경하거나 번호를 폴더값에 맞춰 재작성하지 않음. SEC 조회 SQL에 checkpoint_seqno/savefolder를 추가해 각 원본 값을 조회할 수 있도록 함.
+- **전환/설명서:** DB 구조 변경에 따라 형식 버전 2→3, GUI 기본 파일명 circuit_review_v3.db로 변경. 이전 형식 1/2의 빈 DB도 자동 변환하지 않고 새 파일에 원본 CSV+JSON을 재적재. 실행 안내 9장의 교체 순서와 PRAGMA user_version/해당 레코드 조회 SQL, 개발 가이드·배포 README·목차를 함께 갱신.
+- **검증:** Linux/Python 3.12에서 `python -S -m unittest discover -s tests -p 'test_spdm_schema.py' -v` 18개 통과. savefolder가 generated가 아닌 일반 TEXT인지, 형식 버전 3/LDRC 위치/이전 형식 1·2 거부, 실제 importer 9개 INSERT/UPDATE의 EXPLAIN 컴파일, 기존 빈 스키마/SQL/롤백/스칼라 검사를 확인. 합성 CSV/JSON·업무 레코드는 생성하지 않음.
+- **배포본 검증:** 10개 허용 파일·네 Python 실행 파일로 ZIP 갱신. 한글/공백/# 경로의 pip 없는 venv에 풀어 패키지 코드로 같은 18개 검사와 CLI 버전 3/14테이블 0행·savefolder 일반 TEXT를 확인. 파일별 체크섬/소스 바이트 일치와 Python 3.10 문법도 확인. 실제 과거 커밋의 버전 1/2 SQL로 만든 빈 DB가 새 CLI에서 거부되고 바이트가 유지됨을 별도 검증. 로컬 근거는 output/spdm/savefolder-validation/checks.json이며 게시하지 않음.
+- **한계/게시 범위:** 원문 seqno/savefolder 관계를 강제하던 코드와 저장 구조를 수정한 것이며 실제 사내 전체 CSV+JSON 적재 성공이나 이번 수정의 Windows 실행은 아직 미확인. 과거 Windows CI 결과를 새 검증으로 재사용하지 않음. 회사 데이터·DB·보고서를 제외한 코드·검사·문서·배포 ZIP만 현재 브랜치에 일반 푸시하는 범위.

@@ -6,7 +6,7 @@ from pathlib import Path
 import sqlite3
 
 APPLICATION_ID = 0x43525657
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SCHEMA_PATH = Path(__file__).with_name("schema_sqlite.sql")
 
 

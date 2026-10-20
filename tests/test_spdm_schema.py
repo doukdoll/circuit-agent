@@ -46,38 +46,41 @@ class BlankSchemaTest(unittest.TestCase):
         self.assertEqual('already_initialized', initialize_database(self.db)['status'])
         self.assertEqual(before, self.db.read_bytes())
 
-    def test_generated_column_and_provided_primary_keys_are_retained(self):
+    def test_savefolder_is_regular_text_and_primary_keys_are_retained(self):
         initialize_database(self.db)
         with closing(connect_database(self.db, read_only=True)) as con:
             columns = {row[1]: row for row in con.execute('PRAGMA table_xinfo(checkpoints)')}
-            self.assertEqual(3, columns['savefolder'][6])
+            self.assertEqual('TEXT', columns['savefolder'][2])
+            self.assertEqual(0, columns['savefolder'][6])
             ddl = con.execute("SELECT sql FROM sqlite_master WHERE name='parts'").fetchone()[0]
             self.assertNotIn('AUTOINCREMENT', ddl)
 
-    def test_ldrc_metadata_is_owned_by_checkpoints_in_format_two(self):
+    def test_ldrc_metadata_is_owned_by_checkpoints_in_format_three(self):
         initialize_database(self.db)
         ldrc_columns = {'ldrc_check_tp', 'ldrc_regist_tp', 'ldrc_check_date_serial',
                         'ldrc_checker_emp_no', 'ldrc_id'}
         with closing(connect_database(self.db, read_only=True)) as con:
-            self.assertEqual(2, SCHEMA_VERSION)
-            self.assertEqual(2, con.execute('PRAGMA user_version').fetchone()[0])
+            self.assertEqual(3, SCHEMA_VERSION)
+            self.assertEqual(3, con.execute('PRAGMA user_version').fetchone()[0])
             part_columns = {row[1] for row in con.execute('PRAGMA table_info(parts)')}
             checkpoint_columns = {row[1] for row in con.execute('PRAGMA table_info(checkpoints)')}
             self.assertTrue(ldrc_columns.isdisjoint(part_columns))
             self.assertTrue(ldrc_columns <= checkpoint_columns)
             ensure_empty(con)
 
-    def test_previous_format_is_rejected_without_changing_the_database(self):
+    def test_previous_formats_are_rejected_without_changing_the_database(self):
         initialize_database(self.db)
-        with closing(sqlite3.connect(self.db)) as con:
-            con.execute('PRAGMA user_version = 1')
-        before = self.db.read_bytes()
-        with self.assertRaisesRegex(ValueError, '별도 새 DB 파일명'):
-            initialize_database(self.db)
-        self.assertEqual(before, self.db.read_bytes())
-        with closing(connect_database(self.db, read_only=True)) as con:
-            with self.assertRaisesRegex(ValueError, '별도 새 DB 파일명'):
-                validate_schema(con)
+        for version in (1, 2):
+            with self.subTest(version=version):
+                with closing(sqlite3.connect(self.db)) as con:
+                    con.execute(f'PRAGMA user_version = {version}')
+                before = self.db.read_bytes()
+                with self.assertRaisesRegex(ValueError, '별도 새 DB 파일명'):
+                    initialize_database(self.db)
+                self.assertEqual(before, self.db.read_bytes())
+                with closing(connect_database(self.db, read_only=True)) as con:
+                    with self.assertRaisesRegex(ValueError, '별도 새 DB 파일명'):
+                        validate_schema(con)
 
     def test_import_sql_compiles_against_schema_without_inserting_records(self):
         initialize_database(self.db)

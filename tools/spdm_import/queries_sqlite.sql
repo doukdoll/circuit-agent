@@ -19,6 +19,7 @@ UNION ALL SELECT 'verification_facts', COUNT(*) FROM verification_facts;
 -- All matching part groups are retained; SEC is not a unique part_id.
 SELECT p.part_id, p.sec_code, p.maker, p.maker_pn,
        cp.checkpoint_id, cp.external_checkpoint_id, cp.source_row_uid,
+       cp.checkpoint_seqno, cp.savefolder,
        cp.checkpoint_text, cp.specification_text, cp.design_template_text,
        cp.ldrc_check_tp, cp.ldrc_regist_tp, cp.ldrc_check_date_serial,
        cp.ldrc_checker_emp_no, cp.ldrc_id,
