@@ -6,7 +6,7 @@ from pathlib import Path
 import sqlite3
 
 APPLICATION_ID = 0x43525657
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA_PATH = Path(__file__).with_name("schema_sqlite.sql")
 
 
@@ -64,7 +64,10 @@ def validate_schema(connection):
     if connection.execute("PRAGMA application_id").fetchone()[0] != APPLICATION_ID:
         raise ValueError("새 Circuit Review DB가 아닙니다. init_db.py로 별도의 새 DB를 만드세요.")
     if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
-        raise ValueError("지원하지 않는 Circuit Review 스키마 버전입니다. 자동 변환하지 않습니다.")
+        raise ValueError(
+            f"지원하지 않는 Circuit Review 스키마 버전입니다. 현재 버전은 {SCHEMA_VERSION}입니다. "
+            "기존 DB는 자동 변환하지 않으므로 별도 새 DB 파일명을 선택하세요."
+        )
     if objects(connection) != expected_objects():
         raise ValueError("DB의 테이블·인덱스·트리거가 동봉 스키마와 다릅니다. 자동 변환하지 않습니다.")
 

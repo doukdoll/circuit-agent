@@ -2,7 +2,7 @@
 
 - [새 배포 ZIP 다운로드](../dist/README.md) — feat/circuit-review-sqlite 브랜치의 Circuit Review SQLite 배포본
 
-- [현재: Circuit Review SQLite 실행 안내](CIRCUIT_REVIEW_RUN.md) — 14개 테이블 초기화·실제 23컬럼 CSV+분석 JSON 최초 적재·Python 실행기
+- [현재: Circuit Review SQLite 실행 안내](CIRCUIT_REVIEW_RUN.md) — 형식 버전 2·LDRC 체크포인트별 저장·실제 CSV+JSON 최초 적재·Python 실행기
 - [보존: JSON 전용 v7 요구와 코드](SPDM_LEGACY_V7.md) — 이전 최신 규칙 교체 방식과 테스트·실행 문서
 - [이전 JSON 저장·조회 가이드](SPDM_JSON_RUN.md)
 - [이전 팀원용 설치·실행 안내](SPDM_TEAM_START.md)

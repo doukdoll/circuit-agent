@@ -7,7 +7,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 브랜치 | feat/circuit-review-sqlite |
-| 스키마 | 14개 테이블·2개 트리거, 별도 DB 형식 버전 1 |
+| 스키마 | 14개 테이블·2개 트리거, 별도 DB 형식 버전 2 |
 | 환경 | Python 3.10+, SQLite 3.31+ 및 JSON1, 표준 라이브러리 |
 | ZIP 내용 | 코드·SQL·실행 안내·버전·체크섬 10개 파일 |
 | 데이터 | 실제 CSV/JSON·DB·보고서·가상 데이터 생성기 미포함 |
@@ -16,6 +16,8 @@
 
 ZIP의 SHA-256은 circuit-review-sqlite.zip.sha256에 기록합니다. ZIP 안의 SHA256SUMS.txt는 압축 해제한 개별 파일의 체크섬입니다. Python 설치 프로그램은 포함하지 않습니다.
 
-2026-10-20 수정본은 공통 필드의 빈 선택 항목/동일 날짜 표기 비교를 보완하고, 실제 불일치의 비교 레코드·컬럼·값을 표시합니다. 실행 폴더는 네 Python 파일만 남겼으며 이전 실행 파일은 Git 이력으로 보존합니다. 위 다운로드는 이 브랜치의 수정 ZIP입니다. 새 수정의 Linux 검사 15개를 통과했지만 실제 원본 CSV 31번과 새 Windows 실행은 아직 확인하지 않았습니다.
+2026-10-20 형식 버전 2는 S~W열 LDRC 5개 값을 checkpoints에 각 레코드별로 저장합니다. 같은 부품의 규칙마다 등록 상태/ID가 달라도 해당 값이 보존됩니다. 부품 공통 값의 실제 차이와 SQL 제약은 계속 검사합니다. 실행 폴더는 네 Python 파일이며 이전 실행 파일은 Git 이력으로 보존합니다.
+
+최신 ZIP 전체를 새 폴더에 풀고 setup_rules.py에서 실제 CSV+JSON을 선택한 뒤 새 circuit_review_v2.db로 적재하세요. 이전 형식 버전 1의 DB는 비어 있어도 재사용하거나 자동 변환하지 않습니다. Linux 검사 18개는 통과했지만 실제 SPDM 전체 입력과 이번 수정의 Windows 실행은 아직 확인하지 않았습니다.
 
 이전 게시 이력인 [PR #3](https://github.com/doukdoll/circuit-agent/pull/3)은 사용자 요청으로 닫힌 상태이며 다시 열지 않습니다. [이전 코드의 Windows 검증 결과](https://github.com/doukdoll/circuit-agent/actions/runs/39188935104): Python 3.10/3.12 × PowerShell 5.1/7 네 조합 각각 빈 스키마 테스트 10개 및 초기화 통과. 실제 CSV+JSON 적재와 GUI 직접 클릭은 미검증입니다.

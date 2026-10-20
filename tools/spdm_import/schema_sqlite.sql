@@ -1,4 +1,5 @@
--- Circuit-review AI: SQLite 3.31+ with JSON1.
+-- Circuit-review AI: SQLite 3.31+ with JSON1; DB format version 2.
+-- LDRC metadata belongs to each checkpoint, not the shared part.
 -- PRAGMA foreign_keys must be enabled on every application connection.
 PRAGMA foreign_keys = ON;
 
@@ -11,11 +12,6 @@ CREATE TABLE IF NOT EXISTS parts (
     comp_date_serial TEXT NOT NULL,
     maker TEXT,
     maker_pn TEXT,
-    ldrc_check_tp TEXT CHECK (ldrc_check_tp IS NULL OR ldrc_check_tp IN ('Y', 'N')),
-    ldrc_regist_tp TEXT CHECK (ldrc_regist_tp IS NULL OR ldrc_regist_tp IN ('Y', 'N', 'B')),
-    ldrc_check_date_serial TEXT,
-    ldrc_checker_emp_no TEXT CHECK (ldrc_checker_emp_no IS NULL OR length(ldrc_checker_emp_no) = 8),
-    ldrc_id TEXT,
     UNIQUE (adminno, part_seqno)
 );
 CREATE INDEX IF NOT EXISTS idx_parts_sec_code ON parts(sec_code);
@@ -34,6 +30,11 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     ref_date_serial TEXT NOT NULL,
     category TEXT CHECK (category IS NULL OR category IN ('a', 'b', 'c')),
     pin_info TEXT,
+    ldrc_check_tp TEXT CHECK (ldrc_check_tp IS NULL OR ldrc_check_tp IN ('Y', 'N')),
+    ldrc_regist_tp TEXT CHECK (ldrc_regist_tp IS NULL OR ldrc_regist_tp IN ('Y', 'N', 'B')),
+    ldrc_check_date_serial TEXT,
+    ldrc_checker_emp_no TEXT CHECK (ldrc_checker_emp_no IS NULL OR length(ldrc_checker_emp_no) = 8),
+    ldrc_id TEXT,
     external_checkpoint_id TEXT,
     source_row_uid TEXT UNIQUE,
     source_file_name TEXT,

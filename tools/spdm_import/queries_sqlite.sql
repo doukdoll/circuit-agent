@@ -20,6 +20,8 @@ UNION ALL SELECT 'verification_facts', COUNT(*) FROM verification_facts;
 SELECT p.part_id, p.sec_code, p.maker, p.maker_pn,
        cp.checkpoint_id, cp.external_checkpoint_id, cp.source_row_uid,
        cp.checkpoint_text, cp.specification_text, cp.design_template_text,
+       cp.ldrc_check_tp, cp.ldrc_regist_tp, cp.ldrc_check_date_serial,
+       cp.ldrc_checker_emp_no, cp.ldrc_id,
        ca.analysis_id, ca.version_no, ca.status, ca.summary,
        c.analysis_check_id, c.requirement_id, c.target_kind,
        c.target_description, c.applicability, c.requirement_text, c.level, c.archetype

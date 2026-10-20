@@ -1,5 +1,6 @@
 """Blank schema and scalar comparison checks; no CSV/JSON records generated."""
 
+import ast
 from contextlib import closing
 from pathlib import Path
 import os
@@ -13,7 +14,7 @@ APP_DIR = Path(os.environ.get('CIRCUIT_REVIEW_APP_DIR',
                              Path(__file__).resolve().parents[1] / 'tools' / 'spdm_import')).resolve()
 sys.path.insert(0, str(APP_DIR))
 
-from db_common import connect_database, ensure_empty, objects, validate_schema
+from db_common import SCHEMA_VERSION, connect_database, ensure_empty, objects, validate_schema
 from import_data import (describe_shared_difference, import_files, normalized_shared_value,
                          optional_shared_text, shared_part_error)
 from init_db import initialize_database
@@ -52,6 +53,52 @@ class BlankSchemaTest(unittest.TestCase):
             self.assertEqual(3, columns['savefolder'][6])
             ddl = con.execute("SELECT sql FROM sqlite_master WHERE name='parts'").fetchone()[0]
             self.assertNotIn('AUTOINCREMENT', ddl)
+
+    def test_ldrc_metadata_is_owned_by_checkpoints_in_format_two(self):
+        initialize_database(self.db)
+        ldrc_columns = {'ldrc_check_tp', 'ldrc_regist_tp', 'ldrc_check_date_serial',
+                        'ldrc_checker_emp_no', 'ldrc_id'}
+        with closing(connect_database(self.db, read_only=True)) as con:
+            self.assertEqual(2, SCHEMA_VERSION)
+            self.assertEqual(2, con.execute('PRAGMA user_version').fetchone()[0])
+            part_columns = {row[1] for row in con.execute('PRAGMA table_info(parts)')}
+            checkpoint_columns = {row[1] for row in con.execute('PRAGMA table_info(checkpoints)')}
+            self.assertTrue(ldrc_columns.isdisjoint(part_columns))
+            self.assertTrue(ldrc_columns <= checkpoint_columns)
+            ensure_empty(con)
+
+    def test_previous_format_is_rejected_without_changing_the_database(self):
+        initialize_database(self.db)
+        with closing(sqlite3.connect(self.db)) as con:
+            con.execute('PRAGMA user_version = 1')
+        before = self.db.read_bytes()
+        with self.assertRaisesRegex(ValueError, '별도 새 DB 파일명'):
+            initialize_database(self.db)
+        self.assertEqual(before, self.db.read_bytes())
+        with closing(connect_database(self.db, read_only=True)) as con:
+            with self.assertRaisesRegex(ValueError, '별도 새 DB 파일명'):
+                validate_schema(con)
+
+    def test_import_sql_compiles_against_schema_without_inserting_records(self):
+        initialize_database(self.db)
+        module = ast.parse((APP_DIR / 'import_data.py').read_text(encoding='utf-8'))
+        count = 0
+        with closing(connect_database(self.db, read_only=True)) as con:
+            for node in ast.walk(module):
+                if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr == 'execute' and node.args
+                        and isinstance(node.args[0], ast.Constant)
+                        and isinstance(node.args[0].value, str)):
+                    continue
+                sql = node.args[0].value
+                if not sql.lstrip().upper().startswith(('INSERT ', 'UPDATE ')):
+                    continue
+                # EXPLAIN only compiles statements, including CHECK/FK code;
+                # it never executes these inserts and generates no records.
+                con.execute('EXPLAIN ' + sql, (None,) * sql.count('?')).fetchall()
+                count += 1
+            self.assertEqual(9, count)
+            ensure_empty(con)
 
     def test_foreign_database_is_not_modified(self):
         with closing(sqlite3.connect(self.db)) as con:
@@ -124,7 +171,7 @@ class BlankSchemaTest(unittest.TestCase):
 class SharedComparisonTest(unittest.TestCase):
     def test_equal_serial_date_spellings_compare_equal_without_rewriting(self):
         original = ' 1.000 '
-        for column in (4, 20):
+        for column in (4,):
             self.assertEqual(normalized_shared_value(column, original), normalized_shared_value(column, '1'))
         self.assertEqual(' 1.000 ', original)
 
@@ -133,14 +180,14 @@ class SharedComparisonTest(unittest.TestCase):
                             normalized_shared_value(4, '1.00000000000000002'))
 
     def test_optional_missing_text_maps_to_sql_null_consistently(self):
-        for column in (5, 6, 18, 19, 20, 21, 22):
+        for column in (5, 6):
             for text in ('', ' ', '\t', '\u00a0'):
                 with self.subTest(column=column, text=repr(text)):
                     self.assertIsNone(normalized_shared_value(column, text))
                     self.assertIsNone(optional_shared_text(text))
 
     def test_identifiers_and_nonempty_labels_remain_exact(self):
-        for column in (2, 3, 5, 6, 18, 19, 21, 22):
+        for column in (2, 3, 5, 6):
             self.assertNotEqual(normalized_shared_value(column, 'value'),
                                 normalized_shared_value(column, 'value '))
             self.assertNotEqual(normalized_shared_value(column, 'Value'),
@@ -148,10 +195,10 @@ class SharedComparisonTest(unittest.TestCase):
         self.assertEqual(' value ', optional_shared_text(' value '))
 
     def test_error_identifies_rows_columns_and_invisible_characters(self):
-        detail = describe_shared_difference(18, '', '\t')
+        detail = describe_shared_difference(5, '', '\t')
         message = shared_part_error(2, 31, [detail])
         self.assertIn('최초 2번 / 현재 31번', message)
-        self.assertIn('S열 ldrc_check_tp', message)
+        self.assertIn('F열 maker', message)
         self.assertIn("현재='\\t'", message)
 
 if __name__ == '__main__':

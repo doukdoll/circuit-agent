@@ -41,7 +41,7 @@ def run_setup(dialogs, messages, *, app_dir=None):
         output.mkdir(parents=True, exist_ok=True)
         database = dialogs.asksaveasfilename(
             title='빈 Circuit Review DB 저장 위치', initialdir=str(output),
-            initialfile='circuit_review.db', defaultextension='.db',
+            initialfile='circuit_review_v2.db', defaultextension='.db',
             filetypes=(('SQLite DB', '*.db'), ('SQLite DB', '*.sqlite')),
             confirmoverwrite=False,
         )

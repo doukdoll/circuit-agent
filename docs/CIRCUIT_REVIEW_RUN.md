@@ -2,7 +2,7 @@
 
 작성일: 2026-10-19
 
-갱신: 2026-10-20 — 공통 필드 비교/상세 오류 개선 및 실행 파일 정리.
+갱신: 2026-10-20 — LDRC 정보의 체크포인트별 저장, DB 형식 버전 2.
 
 현재 코드는 `tools/spdm_import`입니다. 입력은 **실제 원본 23컬럼 CSV와 그 CSV 전체에 대응하는 분석 JSON**입니다. 빈 DB를 생성할 수 있으며, 실제 파일이 없을 때 데이터는 만들거나 채우지 않습니다. 기존 JSON 전용 v7 방식은 [보존 기록](SPDM_LEGACY_V7.md)에 남겼습니다.
 
@@ -26,15 +26,15 @@ setup_rules.py를 Python으로 실행합니다. 더블클릭이 편집기로 연
 - **예**: 실제 CSV → 대응 JSON → DB 저장 위치 순서로 선택합니다. 빈 스키마를 준비하고 검사·최초 적재를 한 번에 수행합니다.
 - **취소**: 종료합니다.
 
-기본 파일명은 circuit_review.db입니다. 기존 데이터가 있는 DB를 선택하면 거부하며 삭제/전체 교체를 하지 않습니다. 처음 만든 같은 형식의 빈 DB는 재사용할 수 있습니다. 완료 창에는 저장 경로와 실제 건수가 표시됩니다. 오류 시 이번 입력 데이터는 전부 롤백되며 새로 만든 DB에는 빈 테이블만 남을 수 있습니다.
+기본 파일명은 circuit_review_v2.db입니다. 기존 데이터가 있는 DB를 선택하면 거부하며 삭제/전체 교체를 하지 않습니다. 같은 형식 버전 2의 빈 DB만 재사용할 수 있습니다. 이전 버전 1 DB는 비어 있어도 새 파일명으로 다시 만듭니다. 완료 창에는 저장 경로와 실제 건수가 표시됩니다. 오류 시 이번 입력 데이터는 전부 롤백되며 새로 만든 DB에는 빈 테이블만 남을 수 있습니다.
 
 ## 3. 명령으로 실행하는 경우
 
 압축 해제한 폴더에서 실행합니다. Python 경로는 각 PC의 실제 설치 경로를 사용합니다.
 
 ```powershell
-python init_db.py --db circuit_review.db
-python import_data.py --db circuit_review.db --csv checkpoints.csv --analysis analysis.json
+python init_db.py --db circuit_review_v2.db
+python import_data.py --db circuit_review_v2.db --csv checkpoints.csv --analysis analysis.json
 ```
 
 첫 명령만 실행하면 빈 DB가 준비됩니다. 두 번째 명령은 실제 CSV와 JSON을 모두 받은 뒤 실행합니다. 성공 종료 코드는 0, 오류는 2입니다. import_data.py는 없는 DB를 자동 생성하지 않으며 init_db.py 실행이 선행되어야 합니다.
@@ -51,7 +51,8 @@ adminno,seqno,sec_code,writer,comp_date,maker,maker_pn,adminno,seqno,Checkpoint,
 
 - CSV 인코딩은 UTF-8 또는 UTF-8 BOM입니다. Excel 파일은 입력이 아닙니다.
 - adminno 두 열, 부품 그룹별 공유 값, savefolder와 규칙 seqno의 관계를 검사합니다. SQL의 사번·관리번호 길이 및 허용 값 제한도 적용됩니다.
-- 공통 값 비교 시 선택 항목의 공백 빈값은 미제공으로, 수치가 같은 작성일/LDRC 확인일 문자열은 같은 날짜로 비교합니다. 날짜 비교는 반올림 없는 Decimal을 사용합니다. 비어 있지 않은 SEC·사번·제조사 등의 값은 그대로 비교하며 원본 CSV와 raw_row_json은 보존합니다.
+- 부품 공통 값은 C~G열(SEC/작성자/작성일/제조사/부품번호)입니다. 제조사/부품번호의 공백 빈값은 미제공으로, 수치가 같은 작성일 문자열은 반올림 없는 Decimal로 같은 날짜인지 비교합니다. 비어 있지 않은 SEC·사번·제조사 등의 값은 그대로 비교합니다.
+- S~W열 LDRC 정보 5개는 checkpoints에 각 레코드별로 저장합니다. 같은 부품의 규칙마다 달라도 허용하며 부품 공통 값으로 비교하지 않습니다. 선택 항목의 빈 문자열/공백만 있는 값은 SQL NULL로 저장하고, 나머지 문자열은 날짜를 포함해 그대로 보존합니다. 원본 CSV와 raw_row_json도 보존합니다.
 - JSON은 최상위 배열이며 checkpoint_id, row_uid, sec_code, status, analysis를 가집니다. analysis가 객체이면 summary/checks/issues를 가져야 합니다.
 - analysis:null과 선택 error도 원본 레코드 전체에 보존합니다. 세부 규칙이 없는 분석도 CSV 레코드와 대응해야 합니다.
 - CSV **레코드 순서**로 헤더는 1, 데이터는 2부터 셉니다. 셀 안 줄바꿈을 포함한 물리적 텍스트 줄 번호와 혼동하지 않습니다. 제공된 원래 Python importer와 같은 기준입니다.
@@ -71,7 +72,9 @@ queries_sqlite.sql에는 읽기 전용 예시가 있습니다. :sec_code, :desig
 
 ## 6. 기존 v7 및 갱신 정책
 
-이 버전은 JSON 전용 v7 DB의 자동 업그레이드가 아닙니다. 기존 rules-v7.sqlite는 그대로 보존하고 새 circuit_review.db를 만듭니다. CREATE TABLE IF NOT EXISTS는 마이그레이션이 아닙니다.
+이 버전은 JSON 전용 v7 DB의 자동 업그레이드가 아닙니다. 기존 rules-v7.sqlite는 그대로 보존하고 새 circuit_review_v2.db를 만듭니다. CREATE TABLE IF NOT EXISTS는 마이그레이션이 아닙니다.
+
+현재 Circuit Review 형식은 버전 2입니다. 이전 Circuit Review 버전 1에서 parts에 있던 LDRC 5개 컬럼을 checkpoints로 옮겼습니다. 기존 버전 1 DB는 빈 DB여도 자동 변환하지 않으며 별도 circuit_review_v2.db에 원본 CSV+JSON을 다시 적재합니다.
 
 이번 스키마는 제공된 INTEGER PRIMARY KEY를 따르며 AUTOINCREMENT를 추가하지 않았습니다. 분석 버전 컬럼은 있지만 현재 importer는 최초 version_no=1만 저장합니다. 자동 최신 교체·증분 동기화·규칙 버전 추가 기능은 없습니다.
 
@@ -87,10 +90,31 @@ init_db.py로 DB 식별과 형식 버전을 기록하고 전체 정의를 검사
 
 2026-10-20의 공통 필드 비교/상세 오류 수정은 Linux에서 총 15개 검사(기존 10개+스칼라 비교 5개)를 통과했습니다. 합성 CSV/JSON이나 업무 레코드를 만들지 않았습니다. 위 Windows CI는 수정 전 버전의 근거이며 새 비교 코드의 실제 Windows 실행이나 원본 CSV 31번 오류 해소를 확인한 결과가 아닙니다.
 
+이후 LDRC를 체크포인트로 이동한 형식 버전 2는 Linux/Python 3.12에서 총 18개 검사를 통과했습니다. LDRC 컬럼 소유 테이블·형식 버전·이전 버전 DB 보호와 실제 importer의 INSERT/UPDATE SQL 컴파일을 확인했습니다. SQL은 EXPLAIN으로 준비만 하므로 업무 레코드를 넣지 않았습니다. 실제 SPDM 전체 CSV+JSON 적재와 이번 수정의 Windows 실행은 미확인입니다.
+
 ## 8. CSV 공통 필드 오류가 날 때
 
 최신 import_data.py로 다시 실행하면 `Inconsistent shared fields for part` 아래에 최초/현재 레코드 번호, 다른 컬럼, 두 값이 표시됩니다. 부품 그룹은 왼쪽 adminno+seqno이며 오른쪽 규칙 seqno가 달라지는 것은 정상입니다.
 
-공백만 있는 선택 항목이나 수치가 같은 날짜의 표기 차이는 처리합니다. 그 밖의 값이 다르면 기존처럼 적재를 취소합니다. 실제 LDRC가 체크포인트마다 다른 것으로 확인될 때 저장 구조를 별도로 검토하며, 현재는 LDRC 값을 임의로 하나로 합치지 않습니다.
+형식 버전 2에서는 S~W열 LDRC의 행별 차이를 허용하고 각 체크포인트에 보존합니다. C~G열의 실제 공통 값 차이, SEC 불일치, 원문 인용 불일치, SQL의 허용 값 제약 등은 계속 전체 적재를 취소합니다. LDRC 컬럼의 Y/N/B 등 기존 허용 값 제약도 유지합니다.
 
-이 수정은 테이블 구조를 바꾸지 않아 기존 실패 후 남은 빈 Circuit Review DB를 다시 선택할 수 있습니다. 이미 데이터가 있는 DB의 재적재는 기존 정책대로 거부합니다. 원본 CSV나 빈 DB를 먼저 삭제할 필요가 없습니다.
+이전 설명의 “실패 후 빈 DB 재사용”은 같은 형식 안에서만 적용됩니다. 이번 버전 1→2 변경은 테이블 구조가 다르므로 버전 1의 빈 DB도 재사용하지 않습니다. 기존 DB나 원본 CSV를 삭제하거나 수정할 필요는 없습니다.
+
+## 9. 이번 수정본으로 교체하고 다시 적재하기
+
+1. 최신 circuit-review-sqlite.zip을 새 폴더에 모두 압축 풉니다. import_data.py 하나만 교체하면 SQL/버전이 맞지 않습니다.
+2. 새 폴더의 setup_rules.py를 Python으로 실행하고 첫 창에서 **예**를 선택합니다.
+3. 기존과 같은 실제 원본 23컬럼 CSV와 그 전체에 대응하는 분석 JSON을 선택합니다.
+4. DB 저장 위치에서 아직 존재하지 않는 **circuit_review_v2.db**를 지정합니다. 같은 이름이 이미 있으면 새 이름을 사용합니다.
+5. 완료 창의 실제 건수를 확인하고, SQLite GUI에서 새 DB의 checkpoints 테이블을 엽니다. LDRC 5개 컬럼은 parts가 아닌 이 테이블에 있습니다.
+
+SQLite GUI의 SQL 실행 창에서 버전과 오류 지점의 저장값을 확인할 수 있습니다. 아래는 조회문이며 데이터를 생성하지 않습니다.
+
+```sql
+PRAGMA user_version; -- 2
+SELECT source_row_no, ldrc_check_tp, ldrc_regist_tp,
+       ldrc_check_date_serial, ldrc_checker_emp_no, ldrc_id
+FROM checkpoints
+WHERE source_row_no IN (30, 31)
+ORDER BY source_row_no;
+```
